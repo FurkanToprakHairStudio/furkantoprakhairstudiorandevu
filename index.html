@@ -1150,8 +1150,14 @@ const Logic = {
     UI.showSuccess(appt);
   },
   cancelAppointment(id){
+    if(!confirm('Bu randevuyu iptal etmek istediğine emin misin? Tutar hesaptan düşülecek.')) return;
     state.db.appointments=state.db.appointments.filter(a=>a.id!==id);
-    Net.publish(); showToast('Randevu iptal edildi.','success'); UI.renderAdminPanel();
+    Net.publish();
+    showToast('Randevu iptal edildi, tutar hesaptan düşüldü.','success');
+    UI.renderAdminPanel();
+    // İptal edilen tutar gelir/gider/kâr'dan otomatik düşsün
+    if(typeof Finance!=='undefined') Finance.render();
+    UI.renderAnaliz();
   },
   blockDay(){
     const d=document.getElementById('adminBlockDate').value.trim();
@@ -1223,10 +1229,22 @@ const Net = {
 const Finance = {
   period: 'year',
   chart: null,
+  _pmap: null,
+  // İsmi sadeleştir: küçük harf + tüm boşlukları kaldır (eşleşme garantisi)
+  norm(s){ return (s||'').toLocaleLowerCase('tr').replace(/\s+/g,''); },
+  // Fiyat tablosunu sadeleştirilmiş isimlerle hazırla (1 kez)
+  pmap(){
+    if(!this._pmap){
+      this._pmap={};
+      Object.keys(CONFIG.PRICING).forEach(k=>{ this._pmap[this.norm(k)]=CONFIG.PRICING[k]; });
+    }
+    return this._pmap;
+  },
   totals(appt){
     let gelir=0, gider=0;
+    const map=this.pmap();
     (appt.services||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(name=>{
-      const p=CONFIG.PRICING[name];
+      const p=map[this.norm(name)];
       if(p){ gelir+=Number(p.price)||0; gider+=Number(p.cost)||0; }
     });
     return {gelir, gider};
