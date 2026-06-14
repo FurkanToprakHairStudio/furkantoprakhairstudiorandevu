@@ -12,6 +12,7 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/tr.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.10.1/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 <style>
     .yorum-container {
@@ -91,15 +92,6 @@
     position: relative;
     z-index: 2;
   }
-
-/* Kapatma butonu için */
-.about-close-btn {
-    background-color: white !important;
-    color: black; /* Yazı veya ikonun görünür olması için siyah yapıldı */
-    border: none;
-    cursor: pointer;
-    /* İhtiyaca göre padding veya border-radius ayarlarını koruyabilirsiniz */
-}
 
 /* Sosyal medya butonları için */
 .about-action-btn {
@@ -510,6 +502,48 @@
     object-fit: contain;
     margin-right: 6px;
   }
+
+  /* ===== TAM EKRAN YÖNETİM PANELİ ===== */
+  #adminPanelOverlay.admin-fs { position:fixed; inset:0; background:var(--cream); z-index:30000; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  #adminPanelOverlay.hidden { display:none; }
+  .admin-view { max-width:660px; margin:0 auto; padding:16px 18px 60px; }
+  .admin-fs-head { display:flex; align-items:center; gap:14px; padding:6px 0 22px; }
+  .admin-fs-title { font-family:'Fraunces',serif; font-size:24px; font-weight:300; color:var(--ink); }
+  .admin-fs-sub { font-size:12px; color:var(--ink-muted); margin-top:2px; }
+  .admin-fs-head .modal-close { margin-left:auto; }
+
+  .admin-menu { display:flex; flex-direction:column; gap:16px; margin-top:10px; }
+  .admin-menu-btn { display:flex; align-items:center; gap:18px; width:100%; background:var(--warm-white); border:1px solid var(--border); border-radius:var(--r-lg); padding:24px 22px; cursor:pointer; text-align:left; box-shadow:var(--shadow-sm); transition:all 0.2s; font-family:'DM Sans',sans-serif; }
+  .admin-menu-btn:hover { transform:translateY(-2px); box-shadow:var(--shadow-md); border-color:var(--accent-border); }
+  .admin-menu-btn:active { transform:scale(0.99); }
+  .amb-icon { font-size:26px; width:56px; height:56px; display:flex; align-items:center; justify-content:center; background:var(--accent-light); border-radius:var(--r-md); flex-shrink:0; }
+  .amb-text { display:flex; flex-direction:column; gap:3px; }
+  .amb-title { font-size:19px; font-weight:700; color:var(--ink); }
+  .amb-sub { font-size:13px; color:var(--ink-muted); }
+  .admin-logout { margin-top:28px; }
+
+  /* Hesap Defteri */
+  .finance-period { display:flex; gap:6px; background:var(--warm-white); border:1px solid var(--border); border-radius:100px; padding:5px; margin-bottom:20px; box-shadow:var(--shadow-sm); }
+  .fp-btn { flex:1; border:none; background:transparent; border-radius:100px; padding:10px 6px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; color:var(--ink-light); cursor:pointer; transition:all 0.15s; }
+  .fp-btn.active { background:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(45,106,79,0.3); }
+  .finance-cards { display:grid; grid-template-columns:1fr 1.2fr 1fr; gap:10px; background:var(--warm-white); border:1px solid var(--border); border-radius:var(--r-lg); padding:20px 14px; margin-bottom:18px; box-shadow:var(--shadow-sm); }
+  .fin-card { display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; }
+  .fin-label { font-size:11px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--ink-muted); }
+  .fin-val { font-size:16px; font-weight:700; }
+  .fin-card-main .fin-val { font-size:21px; }
+  .fin-gelir, .fin-kar { color:var(--accent); }
+  .fin-gider { color:#C8553D; }
+  .finance-chart-wrap { background:var(--warm-white); border:1px solid var(--border); border-radius:var(--r-lg); padding:16px 14px; height:280px; box-shadow:var(--shadow-sm); }
+  .finance-note { font-size:12px; color:var(--ink-muted); text-align:center; margin-top:14px; line-height:1.5; }
+
+  /* Müşteri Analizi */
+  .analiz-item { display:flex; align-items:center; gap:14px; background:var(--warm-white); border:1px solid var(--border); border-radius:var(--r-md); padding:14px 16px; margin-bottom:10px; box-shadow:var(--shadow-sm); }
+  .analiz-rank { width:34px; height:34px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border-radius:50%; background:var(--accent-light); color:var(--accent); font-weight:700; font-size:14px; }
+  .analiz-rank.top { background:var(--accent); color:#fff; }
+  .analiz-body { flex:1; min-width:0; }
+  .analiz-name { font-weight:700; font-size:15px; color:var(--ink); }
+  .analiz-phone { font-size:12px; color:var(--ink-muted); }
+  .analiz-count { background:var(--accent-light); color:var(--accent); border-radius:100px; padding:5px 12px; font-size:13px; font-weight:700; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -633,16 +667,41 @@
   </div>
 </div>
 
-<div class="overlay hidden" id="adminPanelOverlay">
-  <div class="modal" style="max-width:560px;" onclick="event.stopPropagation()">
-    <div class="admin-header">
-      <div>
-        <h2>Yönetim Paneli</h2>
-        <p id="adminSubtitle">Tüm randevular • Canlı senkronize</p>
-      </div>
+<div id="adminPanelOverlay" class="admin-fs hidden">
+
+  <!-- ANA MENÜ: 3 büyük buton -->
+  <div id="adminHome" class="admin-view">
+    <div class="admin-fs-head">
+      <h2 class="admin-fs-title">Yönetim Paneli</h2>
       <button class="modal-close" onclick="UI.closeAdminPanel()">✕</button>
     </div>
-    <div class="admin-body">
+    <div class="admin-menu">
+      <button class="admin-menu-btn" onclick="UI.showAdminView('randevular')">
+        <span class="amb-icon">📋</span>
+        <span class="amb-text"><span class="amb-title">Randevular</span><span class="amb-sub">Tüm randevuları gör ve yönet</span></span>
+      </button>
+      <button class="admin-menu-btn" onclick="UI.showAdminView('hesap')">
+        <span class="amb-icon">📊</span>
+        <span class="amb-text"><span class="amb-title">Hesap Defteri</span><span class="amb-sub">Gelir, gider ve net kâr</span></span>
+      </button>
+      <button class="admin-menu-btn" onclick="UI.showAdminView('analiz')">
+        <span class="amb-icon">👥</span>
+        <span class="amb-text"><span class="amb-title">Müşteri Analizi</span><span class="amb-sub">En çok gelen müşteriler</span></span>
+      </button>
+    </div>
+    <button class="btn btn-secondary admin-logout" onclick="Logic.adminLogout()">Çıkış Yap</button>
+  </div>
+
+  <!-- RANDEVULAR -->
+  <div id="adminRandevular" class="admin-view" style="display:none;">
+    <div class="admin-fs-head">
+      <button class="back-btn" onclick="UI.showAdminView('home')">←</button>
+      <div>
+        <h2 class="admin-fs-title">Randevular</h2>
+        <p id="adminSubtitle" class="admin-fs-sub">Canlı senkronize</p>
+      </div>
+    </div>
+    <div class="admin-inner">
       <div class="filter-row">
         <button class="filter-btn active" onclick="UI.filterAppts('all',this)">Tümü</button>
         <button class="filter-btn" onclick="UI.filterAppts('today',this)">Bugün</button>
@@ -657,11 +716,44 @@
         <button class="btn btn-secondary btn-sm" style="width:auto;white-space:nowrap;" onclick="Logic.unblockDay()">Günü Aç</button>
       </div>
       <div style="margin-top:10px;"><div id="blockedDaysList" style="font-size:12px;color:var(--ink-muted);"></div></div>
-      <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:18px;">
-        <button class="btn btn-secondary" onclick="Logic.adminLogout()">Çıkış Yap</button>
-      </div>
     </div>
   </div>
+
+  <!-- HESAP DEFTERİ -->
+  <div id="adminHesap" class="admin-view" style="display:none;">
+    <div class="admin-fs-head">
+      <button class="back-btn" onclick="UI.showAdminView('home')">←</button>
+      <h2 class="admin-fs-title">Hesap Defteri</h2>
+    </div>
+    <div class="admin-inner">
+      <div class="finance-period" id="financePeriod">
+        <button class="fp-btn" data-period="day" onclick="Finance.render('day',this)">Gün</button>
+        <button class="fp-btn" data-period="week" onclick="Finance.render('week',this)">Hafta</button>
+        <button class="fp-btn" data-period="month" onclick="Finance.render('month',this)">Ay</button>
+        <button class="fp-btn active" data-period="year" onclick="Finance.render('year',this)">2026</button>
+      </div>
+      <div class="finance-cards">
+        <div class="fin-card"><span class="fin-label">Gelir</span><span class="fin-val fin-gelir" id="finGelir">₺0</span></div>
+        <div class="fin-card fin-card-main"><span class="fin-label">Net Kâr</span><span class="fin-val fin-kar" id="finKar">₺0</span></div>
+        <div class="fin-card"><span class="fin-label">Gider</span><span class="fin-val fin-gider" id="finGider">₺0</span></div>
+      </div>
+      <div class="finance-chart-wrap"><canvas id="financeChart"></canvas></div>
+      <p class="finance-note" id="financeNote"></p>
+    </div>
+  </div>
+
+  <!-- MÜŞTERİ ANALİZİ -->
+  <div id="adminAnaliz" class="admin-view" style="display:none;">
+    <div class="admin-fs-head">
+      <button class="back-btn" onclick="UI.showAdminView('home')">←</button>
+      <h2 class="admin-fs-title">Müşteri Analizi</h2>
+    </div>
+    <div class="admin-inner">
+      <div class="admin-section-title" id="analizTitle">Bu Ay — En Çok Gelen Müşteriler</div>
+      <div id="analizList"></div>
+    </div>
+  </div>
+
 </div>
 
 <div id="toast"></div>
@@ -738,7 +830,28 @@ const CONFIG = {
   _a: atob("b3Ax"), _b: atob("MjMu"),
   get ADMIN_PASS() { return this._a + this._b; },
   TIME_SLOTS: ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00","21:30","22:00"],
-  SERVICES: ["Saç + Sakal","Saç Tıraşı","Sakal Tıraşı","Çocuk Tıraşı","Damat Tıraşı","Cilt Bakımı Detaylı","Altın Oran Kaş Alımı","Express Cilt Bakımı","Yıkama","Fön"]
+  SERVICES: ["Saç + Sakal","Saç Tıraşı","Sakal Tıraşı","Çocuk Tıraşı","Damat Tıraşı","Cilt Bakımı Detaylı","Altın Oran Kaş Alımı","Express Cilt Bakımı","Yıkama","Fön"],
+
+  // =========================================================
+  //  FİYAT & KÂR TABLOSU  (SADECE YÖNETİCİ PANELİNDE KULLANILIR)
+  //  Müşteriler bu fiyatları ASLA görmez. Sadece grafik/hesap için.
+  //  price = müşteriden alınan ücret (₺)
+  //  cost  = o işin sana maliyeti (₺)
+  //  Net Kâr = price - cost (otomatik hesaplanır)
+  //  >>> AŞAĞIDAKİ SAYILARI KENDİ GERÇEK FİYATLARINLA DEĞİŞTİR <<<
+  // =========================================================
+  PRICING: {
+    "Saç + Sakal":          { price: 350,  cost: 70  },
+    "Saç Tıraşı":           { price: 250,  cost: 50  },
+    "Sakal Tıraşı":         { price: 150,  cost: 30  },
+    "Çocuk Tıraşı":         { price: 200,  cost: 40  },
+    "Damat Tıraşı":         { price: 1500, cost: 300 },
+    "Cilt Bakımı Detaylı":  { price: 600,  cost: 150 },
+    "Altın Oran Kaş Alımı": { price: 100,  cost: 20  },
+    "Express Cilt Bakımı":  { price: 300,  cost: 70  },
+    "Yıkama":               { price: 100,  cost: 20  },
+    "Fön":                  { price: 150,  cost: 30  }
+  }
 };
 
 const Session = {
@@ -818,7 +931,41 @@ const UI = {
   openAdminPanel(){
     document.getElementById('adminLoginOverlay').classList.add('hidden');
     document.getElementById('adminPanelOverlay').classList.remove('hidden');
-    this.renderAdminPanel();
+    this.showAdminView('home');
+  },
+  showAdminView(view){
+    ['Home','Randevular','Hesap','Analiz'].forEach(v=>{
+      const el=document.getElementById('admin'+v);
+      if(el) el.style.display='none';
+    });
+    const map={home:'Home',randevular:'Randevular',hesap:'Hesap',analiz:'Analiz'};
+    const el=document.getElementById('admin'+(map[view]||'Home'));
+    if(el) el.style.display='';
+    const ov=document.getElementById('adminPanelOverlay'); if(ov) ov.scrollTop=0;
+    if(view==='randevular') this.renderAdminPanel();
+    else if(view==='hesap') Finance.render();
+    else if(view==='analiz') this.renderAnaliz();
+  },
+  renderAnaliz(){
+    const now=new Date(), y=now.getFullYear(), m=now.getMonth();
+    const months=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+    const t=document.getElementById('analizTitle'); if(t) t.textContent=`${months[m]} ${y} — En Çok Gelen Müşteriler`;
+    const map={};
+    (state.db.appointments||[]).forEach(a=>{
+      if(!a.date) return;
+      const [ay,am]=a.date.split('-').map(Number);
+      if(ay===y && (am-1)===m){
+        const key=(a.phone||a.name||'?').trim();
+        if(!map[key]) map[key]={name:a.name||'-', phone:a.phone||'', count:0};
+        map[key].count++;
+      }
+    });
+    const arr=Object.values(map).sort((a,b)=>b.count-a.count);
+    const cont=document.getElementById('analizList');
+    if(!cont) return;
+    cont.innerHTML=arr.length===0
+      ? '<div class="empty-state"><p>Bu ay henüz randevu yok.</p></div>'
+      : arr.map((c,i)=>`<div class="analiz-item"><div class="analiz-rank ${i<3?'top':''}">${i+1}</div><div class="analiz-body"><div class="analiz-name">${escHtml(c.name)}</div><div class="analiz-phone">${escHtml(c.phone)}</div></div><div class="analiz-count">${c.count} randevu</div></div>`).join('');
   },
   closeAdminPanel(){ document.getElementById('adminPanelOverlay').classList.add('hidden'); },
   filterAppts(type,btn){
@@ -833,7 +980,7 @@ const UI = {
     let appts=[...state.db.appointments].sort((a,b)=>a.date!==b.date?(a.date<b.date?-1:1):(a.time<b.time?-1:1));
     if(state.adminFilter==='today') appts=appts.filter(a=>a.date===td);
     if(state.adminFilter==='upcoming') appts=appts.filter(a=>a.date>=td);
-    document.getElementById('adminSubtitle').textContent=`${state.db.appointments.length} randevu • Canlı senkronize`;
+    const sub=document.getElementById('adminSubtitle'); if(sub) sub.textContent=`${state.db.appointments.length} randevu • Canlı senkronize`;
     list.innerHTML=appts.length===0
       ?`<div class="empty-state"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><p>Bu filtrede randevu bulunmuyor.</p></div>`
       :appts.map(a=>`<div class="appt-item"><div class="appt-meta"><div><div class="appt-name"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg>${escHtml(a.name)}</div><div class="appt-details">📅 ${formatDateTR(a.date)} — ⏰ ${a.time}<br>✂️ ${escHtml(a.services||'—')}<br>📞 ${escHtml(a.phone)}</div></div><span class="badge ${a.date>=td?'badge-success':'badge-accent'}">${a.date>=td?'Aktif':'Geçmiş'}</span></div><button class="btn btn-danger btn-sm" onclick="Logic.cancelAppointment('${a.id}')">İptal Et</button></div>`).join('');
@@ -1037,7 +1184,9 @@ const Net = {
         };
         UI.redrawCalendar();
         if(state.isAdmin && !document.getElementById('adminPanelOverlay').classList.contains('hidden')){
-          UI.renderAdminPanel();
+          if(document.getElementById('adminRandevular').style.display!=='none') UI.renderAdminPanel();
+          if(document.getElementById('adminHesap').style.display!=='none') Finance.render();
+          if(document.getElementById('adminAnaliz').style.display!=='none') UI.renderAnaliz();
         }
         const formVisible = document.getElementById('bookingFormSection').classList.contains('visible');
         if(!formVisible && state.selectedDate && document.getElementById('timeSlotSection').classList.contains('visible')){
@@ -1067,6 +1216,99 @@ const Net = {
         }
       }).catch(()=>{});
     }catch(e){}
+  }
+};
+
+// ===== HESAP DEFTERİ (gelir / gider / net kâr + grafik) =====
+const Finance = {
+  period: 'year',
+  chart: null,
+  totals(appt){
+    let gelir=0, gider=0;
+    (appt.services||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(name=>{
+      const p=CONFIG.PRICING[name];
+      if(p){ gelir+=Number(p.price)||0; gider+=Number(p.cost)||0; }
+    });
+    return {gelir, gider};
+  },
+  fmt(n){ return '₺'+Math.round(n).toLocaleString('tr-TR'); },
+  buckets(period){
+    const appts=state.db.appointments||[];
+    const now=new Date(), y=now.getFullYear();
+    let labels=[], data=[];
+    const add=(i,t)=>{ if(data[i]){ data[i].gelir+=t.gelir; data[i].gider+=t.gider; } };
+    if(period==='day'){
+      const td=today();
+      labels=CONFIG.TIME_SLOTS.slice();
+      data=labels.map(()=>({gelir:0,gider:0}));
+      appts.forEach(a=>{ if(a.date===td){ const i=labels.indexOf(a.time); if(i>=0) add(i,this.totals(a)); } });
+    } else if(period==='week'){
+      const dow=(now.getDay()+6)%7;
+      const monday=new Date(y,now.getMonth(),now.getDate()-dow); monday.setHours(0,0,0,0);
+      labels=['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
+      data=labels.map(()=>({gelir:0,gider:0}));
+      appts.forEach(a=>{
+        if(!a.date) return;
+        const [ay,am,ad]=a.date.split('-').map(Number);
+        const diff=Math.round((new Date(ay,am-1,ad)-monday)/86400000);
+        if(diff>=0 && diff<7) add(diff,this.totals(a));
+      });
+    } else if(period==='month'){
+      const m=now.getMonth();
+      const dim=new Date(y,m+1,0).getDate();
+      const weeks=Math.ceil(dim/7);
+      labels=[]; for(let i=0;i<weeks;i++) labels.push((i+1)+'. Hafta');
+      data=labels.map(()=>({gelir:0,gider:0}));
+      appts.forEach(a=>{
+        if(!a.date) return;
+        const [ay,am,ad]=a.date.split('-').map(Number);
+        if(ay===y && (am-1)===m) add(Math.floor((ad-1)/7),this.totals(a));
+      });
+    } else {
+      labels=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+      data=labels.map(()=>({gelir:0,gider:0}));
+      appts.forEach(a=>{
+        if(!a.date) return;
+        const [ay,am]=a.date.split('-').map(Number);
+        if(ay===y) add(am-1,this.totals(a));
+      });
+    }
+    return {labels, data};
+  },
+  render(period, btn){
+    if(period) this.period=period;
+    document.querySelectorAll('#financePeriod .fp-btn').forEach(b=>b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    else { const b=document.querySelector('#financePeriod .fp-btn[data-period="'+this.period+'"]'); if(b) b.classList.add('active'); }
+    const {labels, data}=this.buckets(this.period);
+    const karArr=data.map(d=>d.gelir-d.gider);
+    const totGelir=data.reduce((s,d)=>s+d.gelir,0);
+    const totGider=data.reduce((s,d)=>s+d.gider,0);
+    const totKar=totGelir-totGider;
+    const g=document.getElementById('finGelir'); if(g) g.textContent=this.fmt(totGelir);
+    const gd=document.getElementById('finGider'); if(gd) gd.textContent=this.fmt(totGider);
+    const k=document.getElementById('finKar'); if(k) k.textContent=(totKar>=0?'+':'')+this.fmt(totKar);
+    const yr=new Date().getFullYear();
+    const notes={day:'Bugün — saatlere göre net kâr',week:'Bu hafta — günlere göre net kâr',month:'Bu ay — haftalara göre net kâr',year:yr+' — aylara göre net kâr'};
+    const n=document.getElementById('financeNote'); if(n) n.textContent=notes[this.period]||'';
+    this.draw(labels, karArr);
+  },
+  draw(labels, karArr){
+    const ctx=document.getElementById('financeChart');
+    if(!ctx || typeof Chart==='undefined') return;
+    if(this.chart) this.chart.destroy();
+    this.chart=new Chart(ctx,{
+      type:'line',
+      data:{ labels, datasets:[{ label:'Net Kâr', data:karArr, borderColor:'#2D6A4F', backgroundColor:'rgba(45,106,79,0.12)', fill:true, tension:0.4, pointRadius:2, pointBackgroundColor:'#2D6A4F', borderWidth:2.5 }] },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:(c)=>'₺'+Math.round(c.parsed.y).toLocaleString('tr-TR') } } },
+        scales:{
+          x:{ grid:{display:false}, ticks:{ color:'#A8A299', font:{size:10}, maxRotation:0, autoSkip:true, maxTicksLimit:8 } },
+          y:{ grid:{color:'rgba(26,24,20,0.06)'}, ticks:{ color:'#A8A299', font:{size:10}, callback:(v)=>'₺'+Number(v).toLocaleString('tr-TR') }, beginAtZero:true }
+        }
+      }
+    });
   }
 };
 
