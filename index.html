@@ -841,16 +841,16 @@ const CONFIG = {
   //  >>> AŞAĞIDAKİ SAYILARI KENDİ GERÇEK FİYATLARINLA DEĞİŞTİR <<<
   // =========================================================
   PRICING: {
-    "Saç + Sakal":          { price: 350,  cost: 70  },
-    "Saç Tıraşı":           { price: 250,  cost: 50  },
-    "Sakal Tıraşı":         { price: 150,  cost: 30  },
-    "Çocuk Tıraşı":         { price: 200,  cost: 40  },
-    "Damat Tıraşı":         { price: 1500, cost: 300 },
-    "Cilt Bakımı Detaylı":  { price: 600,  cost: 150 },
-    "Altın Oran Kaş Alımı": { price: 100,  cost: 20  },
-    "Express Cilt Bakımı":  { price: 300,  cost: 70  },
-    "Yıkama":               { price: 100,  cost: 20  },
-    "Fön":                  { price: 150,  cost: 30  }
+    "Saç + Sakal":          { price: 600,  cost: 240  },
+    "Saç Tıraşı":           { price: 500,  cost: 190  },
+    "Sakal Tıraşı":         { price: 400,  cost: 160  },
+    "Çocuk Tıraşı":         { price: 400,  cost: 150  },
+    "Damat Tıraşı":         { price: 4000, cost: 1100 },
+    "Cilt Bakımı Detaylı":  { price: 1400, cost: 550  },
+    "Altın Oran Kaş Alımı": { price: 200,  cost: 70   },
+    "Express Cilt Bakımı":  { price: 800,  cost: 320  },
+    "Yıkama":               { price: 150,  cost: 65   },
+    "Fön":                  { price: 150,  cost: 60   }
   }
 };
 
@@ -1297,15 +1297,16 @@ const Finance = {
     const ctx=document.getElementById('financeChart');
     if(!ctx || typeof Chart==='undefined') return;
     if(this.chart) this.chart.destroy();
+    const ymax=Math.max(0,...karArr);
     this.chart=new Chart(ctx,{
       type:'line',
-      data:{ labels, datasets:[{ label:'Net Kâr', data:karArr, borderColor:'#2D6A4F', backgroundColor:'rgba(45,106,79,0.12)', fill:true, tension:0.4, pointRadius:2, pointBackgroundColor:'#2D6A4F', borderWidth:2.5 }] },
+      data:{ labels, datasets:[{ label:'Net Kâr', data:karArr, borderColor:'#2D6A4F', backgroundColor:'rgba(45,106,79,0.12)', fill:true, cubicInterpolationMode:'monotone', tension:0.4, pointRadius:2, pointBackgroundColor:'#2D6A4F', borderWidth:2.5 }] },
       options:{
         responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:(c)=>'₺'+Math.round(c.parsed.y).toLocaleString('tr-TR') } } },
         scales:{
           x:{ grid:{display:false}, ticks:{ color:'#A8A299', font:{size:10}, maxRotation:0, autoSkip:true, maxTicksLimit:8 } },
-          y:{ grid:{color:'rgba(26,24,20,0.06)'}, ticks:{ color:'#A8A299', font:{size:10}, callback:(v)=>'₺'+Number(v).toLocaleString('tr-TR') }, beginAtZero:true }
+          y:{ grid:{color:'rgba(26,24,20,0.06)'}, ticks:{ color:'#A8A299', font:{size:10}, precision:0, callback:(v)=>'₺'+Number(v).toLocaleString('tr-TR') }, beginAtZero:true, suggestedMax: ymax>0 ? undefined : 20000 }
         }
       }
     });
