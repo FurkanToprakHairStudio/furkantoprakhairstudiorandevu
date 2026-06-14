@@ -178,8 +178,8 @@
   span.flatpickr-prev-month:hover,span.flatpickr-next-month:hover { background:var(--accent-light) !important; border-radius:8px !important; }
   .flatpickr-weekday { color:var(--ink-muted) !important; font-weight:600 !important; font-size:11px !important; }
   .flatpickr-days { width:100% !important; }
-  .dayContainer { width:100% !important; min-width:100% !important; max-width:100% !important; gap:4px; }
-  .flatpickr-day { max-width:none !important; height:44px !important; line-height:44px !important; color:var(--ink) !important; border-radius:var(--r-sm) !important; border:1px solid transparent !important; font-size:14px !important; font-weight:500 !important; margin:2px !important; background:transparent !important; transition:all 0.15s !important; font-family:'DM Sans',sans-serif !important; }
+  .dayContainer { width:100% !important; min-width:100% !important; max-width:100% !important; }
+  .flatpickr-day { max-width:14.2857143% !important; flex-basis:14.2857143% !important; height:44px !important; line-height:44px !important; color:var(--ink) !important; border-radius:var(--r-sm) !important; border:1px solid transparent !important; font-size:14px !important; font-weight:500 !important; margin:0 !important; background:transparent !important; transition:all 0.15s !important; font-family:'DM Sans',sans-serif !important; }
   .flatpickr-day:hover:not(.flatpickr-disabled):not(.prevMonthDay):not(.nextMonthDay) { background:var(--accent-light) !important; border-color:var(--accent-border) !important; color:var(--accent) !important; }
   .flatpickr-day.selected,.flatpickr-day.selected:hover { background:var(--accent) !important; border-color:var(--accent) !important; color:white !important; box-shadow:0 2px 8px rgba(45,106,79,0.35) !important; }
   .flatpickr-day.flatpickr-disabled,.flatpickr-day.prevMonthDay,.flatpickr-day.nextMonthDay { color:var(--ink-muted) !important; opacity:0.35 !important; }
@@ -545,7 +545,7 @@
   <div class="page-header">
     <div class="eyebrow">Online Rezervasyon</div>
     <h1>Randevunuzu <em>kolayca</em> alın</h1>
-    <p>Tarih seçin, uygun saati belirleyin og bilgilerinizi girin.</p>
+    <p>Tarih seçin, uygun saati belirleyin ve bilgilerinizi girin.</p>
   </div>
 
   <div class="card" id="calendarCard">
@@ -607,7 +607,8 @@
       <svg style="vertical-align:middle;margin-right:5px;margin-bottom:2px;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
       @furkantoprakhairstudio
     </a>
-  
+  </div>
+
   <div class="footer-credit">Yapımcı: Kerem Türkmen</div>
 </footer>
 
@@ -728,6 +729,12 @@
 const CONFIG = {
   MQTT_BROKER: "wss://broker.emqx.io:8084/mqtt",
   MQTT_TOPIC: "kerem-randevu-v6-beta-2026",
+  // === Telefona anlık PUSH bildirim (ntfy.sh) ===
+  // Dükkan sahibi telefonuna ücretsiz "ntfy" uygulamasını kurup
+  // AŞAĞIDAKİ kanal adına abone olmalı. Uygulama kapalı/telefon kilitliyken bile bildirim düşer.
+  // Kanal adını istersen değiştir; tahmin edilmesi zor, gizli bir şey olsun.
+  NTFY_SERVER: "https://ntfy.sh",
+  NTFY_TOPIC: "furkan-toprak-randevu-9f3k2xq7",
   _a: atob("b3Ax"), _b: atob("MjMu"),
   get ADMIN_PASS() { return this._a + this._b; },
   TIME_SLOTS: ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00","21:30","22:00"],
@@ -752,7 +759,7 @@ const state = {
 function formatDateTR(s) {
   if(!s) return '';
   const [y,m,d]=s.split('-');
-  return `${parseInt(d)} ${'Ocak Şubat Mart Nisan Mayıs Haziran Temmuz Ağustos Eylül Kasım Aralık'.split(' ')[parseInt(m)-1]} ${y}`;
+  return `${parseInt(d)} ${'Ocak Şubat Mart Nisan Mayıs Haziran Temmuz Ağustos Eylül Ekim Kasım Aralık'.split(' ')[parseInt(m)-1]} ${y}`;
 }
 function today(){ return new Date().toISOString().split('T')[0]; }
 function generateId(){ return Date.now().toString(36)+Math.random().toString(36).substr(2,6); }
@@ -990,6 +997,7 @@ const Logic = {
       createdAt:new Date().toLocaleString('tr-TR')
     };
     state.db.appointments.push(appt); Net.publish();
+    Net.sendPush(appt); // Dükkan sahibinin telefonuna anlık bildirim gönder
     state.selectedDate=null; state.selectedTime=null; state.selectedServices=[];
     state.formReady=false;
     UI.showSuccess(appt);
@@ -1043,6 +1051,22 @@ const Net = {
   publish(){
     if(!state.mqttClient||!state.isConnected){showToast('Bağlantı yok, bekleyin.','error');return;}
     state.mqttClient.publish(CONFIG.MQTT_TOPIC,JSON.stringify(state.db),{qos:1,retain:true});
+  },
+  // Dükkan sahibinin telefonuna anlık push bildirim (ntfy.sh üzerinden).
+  // Müşterinin ekranında hiçbir şey açılmaz; arka planda sessizce gönderilir.
+  sendPush(appt){
+    try{
+      const body = `${appt.name} (${appt.phone})\n${appt.services}\n${formatDateTR(appt.date)} - ${appt.time}`;
+      fetch(`${CONFIG.NTFY_SERVER}/${CONFIG.NTFY_TOPIC}`, {
+        method: 'POST',
+        body: body,
+        headers: {
+          'Title': 'Yeni Randevu!',
+          'Priority': 'high',
+          'Tags': 'calendar,scissors'
+        }
+      }).catch(()=>{});
+    }catch(e){}
   }
 };
 
@@ -1052,7 +1076,7 @@ UI.initCalendar();
 
 <div id="servicesOverlay">
   <div class="services-header">
-    <button class="back-btn" onclick="UI.closeServicesPage()"><-</button>
+    <button class="back-btn" onclick="UI.closeServicesPage()">←</button>
     <div class="services-title">Hizmetlerimiz</div>
   </div>
   
