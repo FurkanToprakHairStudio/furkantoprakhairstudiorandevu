@@ -544,6 +544,13 @@
   .analiz-name { font-weight:700; font-size:15px; color:var(--ink); }
   .analiz-phone { font-size:12px; color:var(--ink-muted); }
   .analiz-count { background:var(--accent-light); color:var(--accent); border-radius:100px; padding:5px 12px; font-size:13px; font-weight:700; white-space:nowrap; }
+
+  /* Hesap dökümü */
+  .fin-bd-row { display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--warm-white); border:1px solid var(--border); border-radius:var(--r-sm); padding:11px 14px; margin-bottom:8px; font-size:13px; }
+  .fin-bd-left { color:var(--ink); line-height:1.4; }
+  .fin-bd-left small { color:var(--ink-muted); display:block; font-size:11px; }
+  .fin-bd-amt { font-weight:700; color:var(--accent); white-space:nowrap; }
+  .fin-bd-empty { text-align:center; color:var(--ink-muted); font-size:13px; padding:18px; }
 </style>
 </head>
 <body>
@@ -739,6 +746,8 @@
       </div>
       <div class="finance-chart-wrap"><canvas id="financeChart"></canvas></div>
       <p class="finance-note" id="financeNote"></p>
+      <div class="admin-section-title" style="margin-top:20px;">Bu Dönemde Sayılan Randevular</div>
+      <div id="financeBreakdown"></div>
     </div>
   </div>
 
@@ -1019,13 +1028,20 @@ const UI = {
     document.getElementById('selectedDateLabel').textContent=formatDateTR(state.selectedDate);
     const grid=document.getElementById('timeGrid');
     grid.innerHTML='';
+    const now=new Date();
+    const isToday = state.selectedDate===today();
+    const nowMin = now.getHours()*60 + now.getMinutes();
     CONFIG.TIME_SLOTS.forEach(t=>{
       const booked=state.db.appointments.some(a=>a.date===state.selectedDate&&a.time===t);
       const blocked=state.db.blockedSlots&&state.db.blockedSlots.includes(state.selectedDate+'_'+t);
+      const [hh,mm]=t.split(':').map(Number);
+      const past = isToday && (hh*60+mm) <= nowMin;   // bugün geçmiş saat
       const div=document.createElement('div');
-      div.className='time-slot'+(booked?' slot-booked':'')+(blocked?' slot-blocked':'');
+      div.className='time-slot'+(booked?' slot-booked':'')+((blocked||past)?' slot-blocked':'');
       if(booked){
         div.innerHTML=`<span class="slot-time">${t}</span><span class="slot-label">Dolu</span>`;
+      } else if(past){
+        div.innerHTML=`<span class="slot-time">${t}</span><span class="slot-label">Geçti</span>`;
       } else {
         div.innerHTML=`<span class="slot-time">${t}</span>`;
         if(state.selectedTime===t) div.classList.add('slot-selected');
@@ -1133,6 +1149,14 @@ const Logic = {
     if(!phone||phone.length<7){showToast('Lütfen geçerli bir telefon girin.','error');return;}
     if(state.selectedServices.length===0){showToast('Lütfen en az bir hizmet seçin.','error');return;}
     if(!state.selectedDate||!state.selectedTime){showToast('Tarih/saat seçimi hatalı.','error');return;}
+    if(state.selectedDate===today()){
+      const now=new Date();
+      const [hh,mm]=state.selectedTime.split(':').map(Number);
+      if(hh*60+mm <= now.getHours()*60+now.getMinutes()){
+        showToast('Bu saat geçti, lütfen ileri bir saat seçin.','error');
+        UI.showTimeSlots(); document.getElementById('bookingFormSection').classList.remove('visible'); return;
+      }
+    }
     if(state.db.appointments.some(a=>a.date===state.selectedDate&&a.time===state.selectedTime)){
       showToast('Bu saat az önce doldu! Başka saat seçin.','error');
       UI.showTimeSlots(); document.getElementById('bookingFormSection').classList.remove('visible'); return;
@@ -1237,6 +1261,20 @@ const Finance = {
     if(!this._pmap){
       this._pmap={};
       Object.keys(CONFIG.PRICING).forEach(k=>{ this._pmap[this.norm(k)]=CONFIG.PRICING[k]; });
+      // Eski / alternatif isimler de doğru fiyatla eşleşsin
+      const aliases={
+        "Saç Kesimi":"Saç Tıraşı",
+        "Saç":"Saç Tıraşı",
+        "Sakal Kesimi":"Sakal Tıraşı",
+        "Sakal":"Sakal Tıraşı",
+        "Cilt Bakımı":"Cilt Bakımı Detaylı",
+        "Cilt Bakımı Express":"Express Cilt Bakımı",
+        "Express Cilt":"Express Cilt Bakımı",
+        "Kaş Alımı":"Altın Oran Kaş Alımı",
+        "Kaş":"Altın Oran Kaş Alımı",
+        "Saç Yıkama":"Yıkama"
+      };
+      Object.keys(aliases).forEach(k=>{ const ref=CONFIG.PRICING[aliases[k]]; if(ref) this._pmap[this.norm(k)]=ref; });
     }
     return this._pmap;
   },
@@ -1250,6 +1288,34 @@ const Finance = {
     return {gelir, gider};
   },
   fmt(n){ return '₺'+Math.round(n).toLocaleString('tr-TR'); },
+  // Bir randevu seçili döneme giriyor mu?
+  inPeriod(a){
+    if(!a||!a.date) return false;
+    const now=new Date(), y=now.getFullYear();
+    const [ay,am,ad]=a.date.split('-').map(Number);
+    if(this.period==='day') return a.date===today();
+    if(this.period==='week'){
+      const dow=(now.getDay()+6)%7;
+      const monday=new Date(y,now.getMonth(),now.getDate()-dow); monday.setHours(0,0,0,0);
+      const diff=Math.round((new Date(ay,am-1,ad)-monday)/86400000);
+      return diff>=0 && diff<7;
+    }
+    if(this.period==='month') return ay===y && (am-1)===now.getMonth();
+    return ay===y; // yıl
+  },
+  // Bu dönemde sayılan randevuları tek tek göster
+  renderBreakdown(){
+    const box=document.getElementById('financeBreakdown');
+    if(!box) return;
+    const list=(state.db.appointments||[]).filter(a=>this.inPeriod(a))
+      .sort((a,b)=>((a.date+a.time)<(b.date+b.time)?-1:1));
+    if(list.length===0){ box.innerHTML='<div class="fin-bd-empty">Bu dönemde sayılan randevu yok.</div>'; return; }
+    box.innerHTML=list.map(a=>{
+      const t=this.totals(a);
+      const kar=t.gelir-t.gider;
+      return `<div class="fin-bd-row"><div class="fin-bd-left">${escHtml(a.name||'-')}<small>${formatDateTR(a.date)} · ${a.time||''} · ${escHtml(a.services||'-')}</small></div><div class="fin-bd-amt">${this.fmt(kar)}</div></div>`;
+    }).join('');
+  },
   buckets(period){
     const appts=state.db.appointments||[];
     const now=new Date(), y=now.getFullYear();
@@ -1309,6 +1375,7 @@ const Finance = {
     const yr=new Date().getFullYear();
     const notes={day:'Bugün — saatlere göre net kâr',week:'Bu hafta — günlere göre net kâr',month:'Bu ay — haftalara göre net kâr',year:yr+' — aylara göre net kâr'};
     const n=document.getElementById('financeNote'); if(n) n.textContent=notes[this.period]||'';
+    this.renderBreakdown();
     this.draw(labels, karArr);
   },
   draw(labels, karArr){
