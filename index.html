@@ -836,9 +836,15 @@ const CONFIG = {
   // Kanal adını istersen değiştir; tahmin edilmesi zor, gizli bir şey olsun.
   NTFY_SERVER: "https://ntfy.sh",
   NTFY_TOPIC: "furkan-toprak-randevu-9f3k2xq7",
-  _a: atob("b3Ax"), _b: atob("MjMu"),
-  get ADMIN_PASS() { return this._a + this._b; },
-  TIME_SLOTS: ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00","21:30","22:00"],
+  // === YÖNETİCİ ŞİFRESİ ===
+  // Şifre burada DÜZ METİN olarak durmaz. Sadece geri döndürülemez bir "özet"
+  // (SHA-256, 50.000 tur) saklanır. Kaynak koda bakan biri şifreyi okuyamaz.
+  // Şifreyi değiştirmek için: sayfayı aç, tarayıcı konsoluna yaz ->  __brbHash('yeniSifren')
+  // Çıkan iki satırı aşağıdaki _s ve _h değerleriyle değiştir.
+  _s: "7c1f_brb_9f3k2xq7",
+  _h: "cee8374a732f717b842e3d38328307026221e83653d2ca283cc67aeb5f764043",
+  // Randevu saatleri: tam saatler (buçuklu saat yok)
+  TIME_SLOTS: ["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00","22:00"],
   SERVICES: ["Saç + Sakal","Saç Tıraşı","Sakal Tıraşı","Çocuk Tıraşı","Damat Tıraşı","Cilt Bakımı Detaylı","Altın Oran Kaş Alımı","Express Cilt Bakımı","Yıkama","Fön"],
 
   // =========================================================
@@ -863,15 +869,111 @@ const CONFIG = {
   }
 };
 
+// ===== SHA-256 (saf JS, hiçbir dış kütüphane yok) =====
+// Şifreyi kaynak koda yazmadan doğrulamak için kullanılır.
+const Crypt=(function(){
+  const K=new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+  function rr(x,n){ return (x>>>n)|(x<<(32-n)); }
+  function sha256(str){
+    const m=new TextEncoder().encode(str), l=m.length;
+    const blocks=Math.ceil((l+9)/64), total=blocks*64;
+    const buf=new Uint8Array(total); buf.set(m); buf[l]=0x80;
+    const dv=new DataView(buf.buffer), bits=l*8;
+    dv.setUint32(total-8, Math.floor(bits/4294967296)); dv.setUint32(total-4, bits>>>0);
+    const H=new Uint32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]);
+    const w=new Uint32Array(64);
+    for(let i=0;i<blocks;i++){
+      for(let t=0;t<16;t++) w[t]=dv.getUint32(i*64+t*4);
+      for(let t=16;t<64;t++){
+        const x=w[t-15], y=w[t-2];
+        const s0=rr(x,7)^rr(x,18)^(x>>>3), s1=rr(y,17)^rr(y,19)^(y>>>10);
+        w[t]=(w[t-16]+s0+w[t-7]+s1)>>>0;
+      }
+      let a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+      for(let t=0;t<64;t++){
+        const S1=rr(e,6)^rr(e,11)^rr(e,25), ch=(e&f)^(~e&g);
+        const t1=(h+S1+ch+K[t]+w[t])>>>0;
+        const S0=rr(a,2)^rr(a,13)^rr(a,22), mj=(a&b)^(a&c)^(b&c);
+        const t2=(S0+mj)>>>0;
+        h=g;g=f;f=e;e=(d+t1)>>>0;d=c;c=b;b=a;a=(t1+t2)>>>0;
+      }
+      H[0]=(H[0]+a)>>>0;H[1]=(H[1]+b)>>>0;H[2]=(H[2]+c)>>>0;H[3]=(H[3]+d)>>>0;
+      H[4]=(H[4]+e)>>>0;H[5]=(H[5]+f)>>>0;H[6]=(H[6]+g)>>>0;H[7]=(H[7]+h)>>>0;
+    }
+    let o='';
+    for(let i=0;i<8;i++) o+=('00000000'+H[i].toString(16)).slice(-8);
+    return o;
+  }
+  // Yavaş özet: kaba kuvvet denemesini pahalı hale getirir (50.000 tur)
+  function derive(pass, salt){
+    let h=sha256(salt+':'+pass);
+    for(let i=0;i<50000;i++) h=sha256(salt+':'+h);
+    return h;
+  }
+  return { sha256, derive };
+})();
+
+// Yeni şifre özeti üretme yardımcısı (konsolda kullanılır)
+window.__brbHash=function(pass){
+  const salt=Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,10);
+  const h=Crypt.derive(String(pass), salt);
+  console.log('%c index.html icinde CONFIG kismini bununla degistir:','font-weight:bold');
+  console.log('  _s: "'+salt+'",');
+  console.log('  _h: "'+h+'",');
+  return '(yukaridaki 2 satiri kopyala)';
+};
+
 const Session = {
   KEY: 'adm_auth_v2',
-  save() { var e=new Date(); e.setFullYear(e.getFullYear()+1); document.cookie=this.KEY+'=1; expires='+e.toUTCString()+'; path=/; SameSite=Lax'; try{localStorage.setItem(this.KEY,'1')}catch(e){} },
+  // Sadece "1" değil, şifre özetinden türetilmiş bir jeton saklanır.
+  token(){ return Crypt.sha256('s|'+CONFIG._h); },
+  save() { const t=this.token(); var e=new Date(); e.setFullYear(e.getFullYear()+1); document.cookie=this.KEY+'='+t+'; expires='+e.toUTCString()+'; path=/; SameSite=Lax'; try{localStorage.setItem(this.KEY,t)}catch(e){} },
   clear() { document.cookie=this.KEY+'=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax'; try{localStorage.removeItem(this.KEY)}catch(e){} },
-  isActive() { if(document.cookie.split(';').some(c=>c.trim().startsWith(this.KEY+'=1'))) return true; try{return localStorage.getItem(this.KEY)==='1'}catch(e){return false} }
+  isActive() {
+    const t=this.token();
+    if(document.cookie.split(';').some(c=>c.trim()===this.KEY+'='+t)) return true;
+    try{ return localStorage.getItem(this.KEY)===t }catch(e){ return false }
+  }
+};
+
+// ===== KALICI HESAP DEFTERİ ARŞİVİ =====
+// Geçmiş randevular cihazda da saklanır; böylece ay/yıl değişince ya da
+// sunucudaki kayıt tazelenince yıllık gelir SIFIRLANMAZ.
+// Sadece gerçekten İPTAL edilen randevular defterden düşer.
+const Ledger = {
+  KEY:'brb_ledger_v1',
+  _read(){ try{ const o=JSON.parse(localStorage.getItem(this.KEY)); return (o&&typeof o==='object')?{a:o.a||{},d:o.d||[]}:{a:{},d:[]} }catch(e){ return {a:{},d:[]} } },
+  _write(o){ try{ localStorage.setItem(this.KEY, JSON.stringify(o)) }catch(e){} },
+  // Gelen listeyi ve iptal listesini arşivle birleştir
+  sync(list, cancelled){
+    const o=this._read();
+    (cancelled||[]).forEach(id=>{ if(id&&o.d.indexOf(id)<0) o.d.push(id); });
+    if(o.d.length>3000) o.d=o.d.slice(-3000);
+    const del={}; o.d.forEach(id=>del[id]=1);
+    (list||[]).forEach(a=>{ if(a&&a.id&&!del[a.id]) o.a[a.id]=a; });
+    Object.keys(o.a).forEach(id=>{ if(del[id]) delete o.a[id]; });
+    this._write(o);
+  },
+  remove(id){ const o=this._read(); delete o.a[id]; if(o.d.indexOf(id)<0) o.d.push(id); this._write(o); },
+  // Hesap defterinin kullandığı TAM geçmiş (arşiv + şu anki canlı liste)
+  all(){
+    const o=this._read(), m={};
+    Object.keys(o.a).forEach(k=>{ m[k]=o.a[k]; });
+    (state.db.appointments||[]).forEach(a=>{ if(a&&a.id) m[a.id]=a; });
+    o.d.forEach(id=>{ delete m[id]; });
+    return Object.keys(m).map(k=>m[k]);
+  }
 };
 
 const state = {
-  db: { appointments:[], blockedDays:[], blockedSlots:[] },
+  db: { appointments:[], blockedDays:[], blockedSlots:[], cancelled:[] },
   isConnected:false, isAdmin:false, mqttClient:null,
   flatpickr:null, selectedDate:null, selectedTime:null,
   selectedServices:[], adminFilter:'all',
@@ -966,7 +1068,7 @@ const UI = {
     const months=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
     const t=document.getElementById('analizTitle'); if(t) t.textContent=`${months[m]} ${y} — En Çok Gelen Müşteriler`;
     const map={};
-    (state.db.appointments||[]).forEach(a=>{
+    Ledger.all().forEach(a=>{
       if(!a.date) return;
       const [ay,am]=a.date.split('-').map(Number);
       if(ay===y && (am-1)===m){
@@ -1137,13 +1239,19 @@ const UI = {
 
 const Logic = {
   adminLogin(){
-    const p=document.getElementById('adminPass').value;
-    if(p===CONFIG.ADMIN_PASS){
+    const el=document.getElementById('adminPass');
+    const p=el.value;
+    if(!p){ showToast('Şifre girin!','error'); return; }
+    // Girilen şifrenin özeti hesaplanır; kodda şifrenin kendisi hiç bulunmaz.
+    let ok=false;
+    try{ ok = (Crypt.derive(p, CONFIG._s) === CONFIG._h); }catch(e){ ok=false; }
+    if(ok){
       state.isAdmin=true; Session.save(); UI.openAdminPanel();
       showToast('Yönetici girişi başarılı','success');
+      el.value='';
     } else {
       showToast('Hatalı şifre!','error');
-      document.getElementById('adminPass').value='';
+      el.value='';
     }
   },
   adminLogout(){
@@ -1176,7 +1284,9 @@ const Logic = {
       date:state.selectedDate, time:state.selectedTime,
       createdAt:new Date().toLocaleString('tr-TR')
     };
-    state.db.appointments.push(appt); Net.publish();
+    state.db.appointments.push(appt);
+    Ledger.sync([appt], state.db.cancelled);
+    Net.publish();
     Net.sendPush(appt); // Dükkan sahibinin telefonuna anlık bildirim gönder
     state.selectedDate=null; state.selectedTime=null; state.selectedServices=[];
     state.formReady=false;
@@ -1185,6 +1295,11 @@ const Logic = {
   cancelAppointment(id){
     if(!confirm('Bu randevuyu iptal etmek istediğine emin misin? Tutar hesaptan düşülecek.')) return;
     state.db.appointments=state.db.appointments.filter(a=>a.id!==id);
+    // İptal, tüm cihazlarda hesap defterinden düşsün diye kayıtla birlikte yayınlanır
+    if(!Array.isArray(state.db.cancelled)) state.db.cancelled=[];
+    if(state.db.cancelled.indexOf(id)<0) state.db.cancelled.push(id);
+    if(state.db.cancelled.length>3000) state.db.cancelled=state.db.cancelled.slice(-3000);
+    Ledger.remove(id);
     Net.publish();
     showToast('Randevu iptal edildi, tutar hesaptan düşüldü.','success');
     UI.renderAdminPanel();
@@ -1219,8 +1334,11 @@ const Net = {
         state.db = {
           appointments: p.appointments || [],
           blockedDays: p.blockedDays || [],
-          blockedSlots: p.blockedSlots || []
+          blockedSlots: p.blockedSlots || [],
+          cancelled: p.cancelled || []
         };
+        // Geçmiş kayıtlar cihazda arşivlenir -> yıllık gelir asla sıfırlanmaz
+        Ledger.sync(state.db.appointments, state.db.cancelled);
         UI.redrawCalendar();
         if(state.isAdmin && !document.getElementById('adminPanelOverlay').classList.contains('hidden')){
           if(document.getElementById('adminRandevular').style.display!=='none') UI.renderAdminPanel();
@@ -1297,6 +1415,8 @@ const Finance = {
     return {gelir, gider};
   },
   fmt(n){ return '₺'+Math.round(n).toLocaleString('tr-TR'); },
+  // Hesap defterinin veri kaynağı: arşiv + canlı liste (iptaller düşülmüş)
+  pool(){ return Ledger.all(); },
   // Bir randevu seçili döneme giriyor mu?
   inPeriod(a){
     if(!a||!a.date) return false;
@@ -1310,13 +1430,15 @@ const Finance = {
       return diff>=0 && diff<7;
     }
     if(this.period==='month') return ay===y && (am-1)===now.getMonth();
-    return ay===y; // yıl
+    // YIL: sadece takvim yılına bakılır (ay değişimi yıllık toplamı ETKİLEMEZ).
+    // Yıllık toplam yalnızca 1 Ocak'ta sıfırlanır.
+    return ay===y;
   },
   // Bu dönemde sayılan randevuları tek tek göster
   renderBreakdown(){
     const box=document.getElementById('financeBreakdown');
     if(!box) return;
-    const list=(state.db.appointments||[]).filter(a=>this.inPeriod(a))
+    const list=this.pool().filter(a=>this.inPeriod(a))
       .sort((a,b)=>((a.date+a.time)<(b.date+b.time)?-1:1));
     if(list.length===0){ box.innerHTML='<div class="fin-bd-empty">Bu dönemde sayılan randevu yok.</div>'; return; }
     box.innerHTML=list.map(a=>{
@@ -1326,7 +1448,7 @@ const Finance = {
     }).join('');
   },
   buckets(period){
-    const appts=state.db.appointments||[];
+    const appts=this.pool();
     const now=new Date(), y=now.getFullYear();
     let labels=[], data=[];
     const add=(i,t)=>{ if(data[i]){ data[i].gelir+=t.gelir; data[i].gider+=t.gider; } };
@@ -1370,6 +1492,9 @@ const Finance = {
   },
   render(period, btn){
     if(period) this.period=period;
+    // Yıl düğmesi her zaman içinde bulunulan yılı gösterir
+    const yb=document.querySelector('#financePeriod .fp-btn[data-period="year"]');
+    if(yb) yb.textContent=new Date().getFullYear();
     document.querySelectorAll('#financePeriod .fp-btn').forEach(b=>b.classList.remove('active'));
     if(btn) btn.classList.add('active');
     else { const b=document.querySelector('#financePeriod .fp-btn[data-period="'+this.period+'"]'); if(b) b.classList.add('active'); }
@@ -1406,6 +1531,22 @@ const Finance = {
     });
   }
 };
+
+// ===== KAYNAK KODU KORUMASI =====
+// Sağ tık / F12 / Ctrl+U (kaynağı görüntüle) / Ctrl+S / geliştirici araçları kısayolları kapatılır.
+// (Form alanlarında sağ tık serbest kalır ki kopyala-yapıştır çalışsın.)
+(function(){
+  const isField=(t)=>t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable);
+  document.addEventListener('contextmenu',function(e){ if(!isField(e.target)) e.preventDefault(); },{capture:true});
+  document.addEventListener('dragstart',function(e){ if(e.target&&e.target.tagName==='IMG') e.preventDefault(); });
+  document.addEventListener('keydown',function(e){
+    const k=(e.key||'').toLowerCase();
+    if(k==='f12'){ e.preventDefault(); return false; }
+    if(e.ctrlKey&&e.shiftKey&&(k==='i'||k==='j'||k==='c'||k==='k')){ e.preventDefault(); return false; }
+    if(e.ctrlKey&&(k==='u'||k==='s')&&!isField(e.target)){ e.preventDefault(); return false; }
+    if(e.metaKey&&e.altKey&&(k==='i'||k==='j'||k==='c'||k==='u')){ e.preventDefault(); return false; }
+  },{capture:true});
+})();
 
 Net.init();
 UI.initCalendar();
