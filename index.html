@@ -836,13 +836,16 @@ const CONFIG = {
   // Kanal adını istersen değiştir; tahmin edilmesi zor, gizli bir şey olsun.
   NTFY_SERVER: "https://ntfy.sh",
   NTFY_TOPIC: "furkan-toprak-randevu-9f3k2xq7",
-  // === YÖNETİCİ ŞİFRESİ ===
-  // Şifre burada DÜZ METİN olarak durmaz. Sadece geri döndürülemez bir "özet"
-  // (SHA-256, 50.000 tur) saklanır. Kaynak koda bakan biri şifreyi okuyamaz.
-  // Şifreyi değiştirmek için: sayfayı aç, tarayıcı konsoluna yaz ->  __brbHash('yeniSifren')
-  // Çıkan iki satırı aşağıdaki _s ve _h değerleriyle değiştir.
-  _s: "7c1f_brb_9f3k2xq7",
-  _h: "cee8374a732f717b842e3d38328307026221e83653d2ca283cc67aeb5f764043",
+  // === UÇTAN UCA ŞİFRELEME (müşteri verisi = ad/telefon/hizmet) ===
+  // Müşteri bilgileri artık AÇIK ANAHTARLA şifrelenerek saklanır. Kaynağı indiren biri
+  // bile bunları OKUYAMAZ; yalnızca aşağıdaki özel anahtarı ŞİFRENLE açan (=sen) okuyabilir.
+  //   PUBKEY      -> herkese açık anahtar (şifrelemek için, gizli değildir)
+  //   PRIVKEY_ENC -> özel anahtarın ŞİFRENLE kilitlenmiş hali (şifresiz açılamaz)
+  // GİRİŞ ŞİFRESİ KAYNAK KODA YAZILMAZ. Şifreyi değiştirmek için konsola yaz:
+  //   __brbPass('mevcut-sifren','yeni-guclu-sifren')   (anahtarlar korunur, veri kaybı OLMAZ)
+  // Sıfırdan yeni anahtar üretmek (eski şifreli veriler okunamaz olur):  __brbSetup('sifre')
+  PUBKEY: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxCStmZC5xQ4y7KOI+eqfa02UVy4RLT2WaUvBJnNozu/nbxdZvpZeUb9wsf1EL2XElJjPkRQCb/xVzfhC7CuQRIdY6PMw9U1D3oO8CN4EzXUzID4OQ8yxY0dF0JlgiNjvmMy1ryxf/OOVgDCfAFcdBkEr8WxuGv3oLIpKbyNfGvBboh4sQ8O9mBstNFtY6BHFElLrpXVO0zpT4SOHiBKOLAdtgNoY52KSU5OCm8GcedQjwVLhG6Jk0eYsqHKyCv9lxkxox5EZBLakTRseeyDAPW6x2rusDwH0zBREPlB0JW3rBhScMz5hdTiqn/gfPTZZF9q/YShOkV3r8iPa7vgRDQIDAQAB",
+  PRIVKEY_ENC: {"s":"O5pEu4KoqZHEzSXud3tzZA==","i":"+wy9zun94HKyqKvP","c":"iP/6CKD+HqGJEXisAY+qhBH4PTS6cO7kLbNnSDJaBUaxOLdXWOG8KGEI0KNRgR3u+pqwyDEnRbv1bAlqrbUbaCojsNIevQw5XrPsvEO69nX/X6qsW49O+PPdTVPp3wXF/6eEzSzHSwdfkj578vcqUl/0o+suhWjYIixKSObAil3Fz8L4YT2P8iNioN13AfLSTDiKZqKo1Dt6HQbM+P5KYjDa9iouK/cat0qNEgRSgsFDAanDdvARCyqo9A6gfsXnWveQnAVqlkSwvJYI5OX2+RaJN8Pqn8ijpYIWkTXSixGmVgoKu87epJJG4upajCEQ6wpuaZ1tF1DQ7cW3IXGr8uiJu6QloCBbRBuACrHJOBBRX8EiEB/umoFgqD80k47qK6FKpsauPbGBLHz65RP8Rbj5igwUK5uEKa+hLIY0CjZpv55fbuUK5zxVaxZSuWXWzjZtTc68wYFwaz2uNAB4H0r3/KRekA9/b5iNwaU2jUSgvztRVp97nz/crgjd3HeAeGFdSq2rlDTNgf34MrgxEIqQ+sXsx/94jRtaseawQIfs8wswdGYKjPWHW9N9427UsWbzzWmpRvB5SGbWIJKrM+qhhrHBshw+y43NCUbXKtxIgu4NFkB7SoSvv6OWTjVnXVCqMj9KTBQAeOuARmtHijijWjTRv0czY+1uXhrb6pDbXPhB3eJR/bDCgac3ARjHwnyi0l550x8uzd4ZSdWJC8AdqzxuocemDuWHS71qysL4gq2fCRyFYLzj4sluCxlH+CjhEEtdiUQh+e6df1RU0D+RI30IFUpGRQUpsIPvBa8AOtSvh8XfxddvHxNjYa6KxZ0g6S+O9PjJpbukacs4CcawH4edh1pfza5jWt73mxbEdlb44DOPOQhuDr5DEmhxDrontPlOay+Bof0pGM62jqQBdJshg13LSyEoX2nmmDZMcbQWoxkY2ojZzBcLCjSdtxHRHHJuiKZqlHro6DmY/f6glRC9lPxFXto4Bw1vanZqxU2TpV5IK7a7Lko1l1EwqW5PwutwACss/J8oD/rQirDRUJ44z6hVdxTK9UEU4l3/+Ntylf68dmEI+i5f/4/1I/s+ZX0GGyLsr6T+H8RpoEjEGnCMCns6IRoxmujgl4JfRfTCIHT3m/XnTMUjc1T4OtrWBwmXTjhr9MQ+lWdK95sJQ9NhyEUZoiFj7W3piWNi7l+SIvQpIbKcRx5oIy9y8hwN+q8qDNfZX0BKC6Xb7haFAKhyT/VEspLUIIOn4sjJl/JHPuLKxxbXmaNnCojNh21wXsMPl5XmbNJA8MipwKfRNylNFeeZUCzg74TOZNsuhKPo7sRSAFmbIKtlBdWlSA/vkGS9dATuMQoTycWhQH9FUm+Pk1IUFCrWF/DiS/kJfUwGJcHK1PXMuIvpR4IXVF+RbqW/Woo3p5xUi3wrb1NfomYB3dC9mjNjh+Nv8+YEqGHbw0OjlXMKS2SE17MN9q9hjVF5rsUU8nslVRqhQ0MDm+leasew0t/U9OxnrcL5sjeFGkAz4MAdIWdjzflrj6YcBAdZlBt9Q+NL3ytbtvqmuA3p7oe2un1eZu7xHcrbnWJbeHq2c+Bq+HYQEMok3A3QhR7qAWanO/zTO5d4U0nK144iTCkxGuCzf13S19lZ"},
   // Randevu saatleri: tam saatler (buçuklu saat yok)
   TIME_SLOTS: ["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00","22:00"],
   SERVICES: ["Saç + Sakal","Saç Tıraşı","Sakal Tıraşı","Çocuk Tıraşı","Damat Tıraşı","Cilt Bakımı Detaylı","Altın Oran Kaş Alımı","Express Cilt Bakımı","Yıkama","Fön"],
@@ -920,28 +923,165 @@ const Crypt=(function(){
   return { sha256, derive };
 })();
 
-// Yeni şifre özeti üretme yardımcısı (konsolda kullanılır)
-window.__brbHash=function(pass){
-  const salt=Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,10);
-  const h=Crypt.derive(String(pass), salt);
-  console.log('%c index.html icinde CONFIG kismini bununla degistir:','font-weight:bold');
-  console.log('  _s: "'+salt+'",');
-  console.log('  _h: "'+h+'",');
-  return '(yukaridaki 2 satiri kopyala)';
-};
+// ===== UÇTAN UCA ŞİFRELEME (tarayıcının yerleşik WebCrypto motoru — dış kütüphane yok) =====
+// Müşteri ad/telefon/hizmet bilgileri AÇIK ANAHTARLA şifrelenir; yalnızca şifreyle açılan
+// ÖZEL ANAHTAR bunları çözebilir. Kaynağı indiren biri bile veriyi okuyamaz.
+const Vault = {
+  priv: null,          // bu oturumda açılmış özel anahtar (RSA-OAEP)
+  ready: false,        // panel açmaya / veri çözmeye yetkili miyiz?
+  _pub: null,          // önbelleğe alınmış açık anahtar
+  SKEY: 'brb_sk_v1',   // yalnızca bu sekme oturumu boyunca (kapanınca silinir) anahtarı tutar
 
-const Session = {
-  KEY: 'adm_auth_v2',
-  // Sadece "1" değil, şifre özetinden türetilmiş bir jeton saklanır.
-  token(){ return Crypt.sha256('s|'+CONFIG._h); },
-  save() { const t=this.token(); var e=new Date(); e.setFullYear(e.getFullYear()+1); document.cookie=this.KEY+'='+t+'; expires='+e.toUTCString()+'; path=/; SameSite=Lax'; try{localStorage.setItem(this.KEY,t)}catch(e){} },
-  clear() { document.cookie=this.KEY+'=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax'; try{localStorage.removeItem(this.KEY)}catch(e){} },
-  isActive() {
-    const t=this.token();
-    if(document.cookie.split(';').some(c=>c.trim()===this.KEY+'='+t)) return true;
-    try{ return localStorage.getItem(this.KEY)===t }catch(e){ return false }
+  _u8(b64){ const s=atob(b64), u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; },
+  _b64(buf){ const u=new Uint8Array(buf); let s=''; for(let i=0;i<u.length;i++) s+=String.fromCharCode(u[i]); return btoa(s); },
+
+  async _wrapKey(password, saltU8){
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      { name:'PBKDF2', salt: saltU8, iterations: 200000, hash:'SHA-256' },
+      base, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']
+    );
+  },
+  // Şifreyle özel anahtarın ham (pkcs8) baytlarını çöz — yanlış şifrede HATA fırlatır
+  async _openPkcs8(password){
+    const pe = CONFIG.PRIVKEY_ENC;
+    const wk = await this._wrapKey(password, this._u8(pe.s));
+    return crypto.subtle.decrypt({ name:'AES-GCM', iv: this._u8(pe.i) }, wk, this._u8(pe.c));
+  },
+  async pub(){
+    if(!this._pub) this._pub = await crypto.subtle.importKey('spki', this._u8(CONFIG.PUBKEY), { name:'RSA-OAEP', hash:'SHA-256' }, false, ['encrypt']);
+    return this._pub;
+  },
+  // Giriş: şifreyle özel anahtarı aç. Başarılıysa true.
+  async unlock(password){
+    try{
+      const pkcs8 = await this._openPkcs8(password);
+      this.priv = await crypto.subtle.importKey('pkcs8', pkcs8, { name:'RSA-OAEP', hash:'SHA-256' }, false, ['decrypt']);
+      this.ready = true;
+      try{ sessionStorage.setItem(this.SKEY, this._b64(pkcs8)); }catch(e){}
+      return true;
+    }catch(e){ this.priv=null; this.ready=false; return false; }
+  },
+  // Sayfa yenilenince aynı sekme oturumundaki anahtarı şifre sormadan geri yükle
+  async restore(){
+    try{
+      const b = sessionStorage.getItem(this.SKEY); if(!b) return false;
+      this.priv = await crypto.subtle.importKey('pkcs8', this._u8(b), { name:'RSA-OAEP', hash:'SHA-256' }, false, ['decrypt']);
+      this.ready = true; return true;
+    }catch(e){ this.ready=false; return false; }
+  },
+  lock(){ this.priv=null; this.ready=false; try{ sessionStorage.removeItem(this.SKEY); }catch(e){} },
+
+  // Müşteri tarafı: {name,phone,services} -> hibrit şifreli blok (sadece açık anahtar gerekir)
+  async encrypt(obj){
+    const aes = await crypto.subtle.generateKey({ name:'AES-GCM', length:256 }, true, ['encrypt']);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, aes, new TextEncoder().encode(JSON.stringify(obj)));
+    const rawAes = await crypto.subtle.exportKey('raw', aes);
+    const ek = await crypto.subtle.encrypt({ name:'RSA-OAEP' }, await this.pub(), rawAes);
+    return { k:this._b64(ek), i:this._b64(iv.buffer), c:this._b64(ct) };
+  },
+  // Admin tarafı: hibrit şifreli blok -> {name,phone,services}
+  async decrypt(e){
+    const rawAes = await crypto.subtle.decrypt({ name:'RSA-OAEP' }, this.priv, this._u8(e.k));
+    const aes = await crypto.subtle.importKey('raw', rawAes, { name:'AES-GCM' }, false, ['decrypt']);
+    const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv: this._u8(e.i) }, aes, this._u8(e.c));
+    return JSON.parse(new TextDecoder().decode(pt));
+  },
+  // Şifre değiştir: AYNI anahtar çiftini yeni şifreyle yeniden kilitle (veri kaybı OLMAZ)
+  async rewrap(curPass, newPass){
+    const pkcs8 = await this._openPkcs8(curPass); // yanlış mevcut şifrede hata fırlatır
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const wk = await this._wrapKey(newPass, salt);
+    const wrapped = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, wk, pkcs8);
+    return { s:this._b64(salt.buffer), i:this._b64(iv.buffer), c:this._b64(wrapped) };
+  },
+  // Sıfırdan YENİ anahtar çifti üret (ilk kurulum / tam sıfırlama)
+  async fresh(password){
+    const kp = await crypto.subtle.generateKey({ name:'RSA-OAEP', modulusLength:2048, publicExponent:new Uint8Array([1,0,1]), hash:'SHA-256' }, true, ['encrypt','decrypt']);
+    const spki = await crypto.subtle.exportKey('spki', kp.publicKey);
+    const pkcs8 = await crypto.subtle.exportKey('pkcs8', kp.privateKey);
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const wk = await this._wrapKey(password, salt);
+    const wrapped = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, wk, pkcs8);
+    return { PUBKEY:this._b64(spki), PRIVKEY_ENC:{ s:this._b64(salt.buffer), i:this._b64(iv.buffer), c:this._b64(wrapped) } };
   }
 };
+
+// ===== ŞİFRELİ RANDEVU ÇÖZME ÖNBELLEĞİ (yalnızca admin) =====
+// id -> {name,phone,services}. Panel/analiz/hesap ekranları bu önbellekten okur.
+const PlainCache = {};
+async function decryptAll(){
+  if(!Vault.ready) return;
+  const all = {};
+  (state.db.appointments||[]).forEach(a=>{ if(a&&a.id) all[a.id]=a; });
+  try{ Ledger.all().forEach(a=>{ if(a&&a.id && !all[a.id]) all[a.id]=a; }); }catch(e){}
+  for(const id in all){
+    const a = all[id];
+    if(a && a.enc && !PlainCache[id]){
+      try{ PlainCache[id] = await Vault.decrypt(a.enc); }
+      catch(e){ PlainCache[id] = { name:'⚠️ çözülemedi', phone:'', services:'' }; }
+    }
+  }
+}
+// Bir randevunun görüntü alanları: şifreliyse önbellekten, değilse eski düz alanlar
+function apptFields(a){
+  if(!a) return { name:'', phone:'', services:'' };
+  if(a.enc){
+    const p = PlainCache[a.id];
+    return p ? { name:p.name||'', phone:p.phone||'', services:p.services||'' }
+             : { name:'🔒', phone:'🔒', services:'🔒' };
+  }
+  return { name:a.name||'', phone:a.phone||'', services:a.services||'' };
+}
+// Sunucuda kalmış eski DÜZ (şifresiz) randevuları şifrele ve yeniden yayınla
+async function migratePlaintext(){
+  if(!Vault.ready) return false;
+  let changed = false;
+  const list = state.db.appointments || [];
+  for(let i=0;i<list.length;i++){
+    const a = list[i];
+    if(a && !a.enc && (a.name||a.phone||a.services)){
+      try{
+        const enc = await Vault.encrypt({ name:a.name||'', phone:a.phone||'', services:a.services||'' });
+        PlainCache[a.id] = { name:a.name||'', phone:a.phone||'', services:a.services||'' };
+        list[i] = { id:a.id, date:a.date, time:a.time, createdAt:a.createdAt, enc };
+        changed = true;
+      }catch(e){}
+    }
+  }
+  // Yarış koruması: await sırasında yeni MQTT mesajı geldiyse state.db değişmiş olur;
+  // o durumda eski listeyi yayınlama (migrasyon bir sonraki girişte tekrar dener).
+  if(changed && state.db.appointments===list && state.mqttClient && state.isConnected){ try{ Net.publish(); }catch(e){} }
+  return changed;
+}
+
+// ===== KONSOL YARDIMCILARI =====
+// Şifre değiştir (anahtarlar korunur, eski veriler okunur kalır):  __brbPass('mevcut','yeni')
+window.__brbPass = async function(cur, np){
+  if(!cur || !np){ console.log('Kullanım: __brbPass("mevcutSifre","yeniSifre")'); return; }
+  try{
+    const pe = await Vault.rewrap(String(cur), String(np));
+    console.log('%cindex.html icindeki CONFIG.PRIVKEY_ENC satirini bununla degistir (PUBKEY AYNI kalir):', 'font-weight:bold');
+    console.log('  PRIVKEY_ENC: '+JSON.stringify(pe)+',');
+    return '(yukaridaki satiri kopyala)';
+  }catch(e){ console.log('HATA: mevcut sifre yanlis olabilir.'); }
+};
+// Sıfırdan yeni anahtar üret (DİKKAT: eski şifreli randevular ARTIK OKUNAMAZ):  __brbSetup('sifre')
+window.__brbSetup = async function(pass){
+  if(!pass){ console.log('Kullanım: __brbSetup("yeniSifre")'); return; }
+  const cfg = await Vault.fresh(String(pass));
+  console.log('%cindex.html icinde CONFIG.PUBKEY ve CONFIG.PRIVKEY_ENC satirlarini bunlarla degistir:', 'font-weight:bold');
+  console.log('  PUBKEY: "'+cfg.PUBKEY+'",');
+  console.log('  PRIVKEY_ENC: '+JSON.stringify(cfg.PRIVKEY_ENC)+',');
+  return '(iki satiri da guncelle)';
+};
+
+// (Eski cookie/localStorage JETONLU oturum KALDIRILDI — o jeton kaynaktaki _h'den
+//  üretilebildiği için şifresiz panele girmeyi mümkün kılıyordu. Artık "oturum" =
+//  özel anahtarın şifreyle açılmış hali; sadece bu sekme oturumu boyunca Vault.restore() ile.)
 
 // ===== KALICI HESAP DEFTERİ ARŞİVİ =====
 // Geçmiş randevular cihazda da saklanır; böylece ay/yıl değişince ya da
@@ -993,7 +1133,37 @@ function apptPassed(a){
   return a.date < today(); // sadece geçmiş GÜNLER gizlenir; bugünküler gün bitene kadar listede kalır
 }
 function generateId(){ return Date.now().toString(36)+Math.random().toString(36).substr(2,6); }
-function escHtml(s){ return String(s).replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>').replace(/"/g,'"'); }
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// ===== GELEN VERİ TEMİZLİĞİ (XSS / enjeksiyon kalkanı) =====
+// MQTT konusu herkese açık olduğundan kötü niyetli biri BOZUK/zararlı JSON yayınlayabilir.
+// Ekrana basılan HER alan burada KATİ biçim denetiminden geçer; uymayan veri sessizce atılır.
+// (Geçerli randevu/gün/saat verisi olduğu gibi geçer — görünüm/işlev DEĞİŞMEZ.)
+function sanitizeDb(p){
+  const out={ appointments:[], blockedDays:[], blockedSlots:[], cancelled:[] };
+  if(!p || typeof p!=='object') return out;
+  const ID=/^[A-Za-z0-9_-]{1,40}$/, DATE=/^\d{4}-\d{2}-\d{2}$/, TIME=/^\d{2}:\d{2}$/;
+  const SLOT=/^\d{4}-\d{2}-\d{2}_\d{2}:\d{2}$/;
+  const str=(v,n)=> (typeof v==='string' ? v.slice(0,n) : '');
+  const encOk=e=> e && typeof e==='object'
+    && typeof e.k==='string' && typeof e.i==='string' && typeof e.c==='string'
+    && e.k.length<4000 && e.i.length<200 && e.c.length<8000;
+  (Array.isArray(p.appointments)?p.appointments:[]).forEach(a=>{
+    if(!a || typeof a!=='object') return;
+    if(!ID.test(a.id||'')) return;                 // id yok/bozuksa randevuyu at
+    if(!DATE.test(a.date||'')) return;             // tarih formatı katı (YYYY-AA-GG)
+    const o={ id:a.id, date:a.date,
+              time: TIME.test(a.time||'')?a.time:'',
+              createdAt: str(a.createdAt,40) };
+    if(encOk(a.enc)){ o.enc={ k:a.enc.k, i:a.enc.i, c:a.enc.c }; }
+    else { o.name=str(a.name,120); o.phone=str(a.phone,40); o.services=str(a.services,300); }
+    out.appointments.push(o);
+  });
+  (Array.isArray(p.blockedDays)?p.blockedDays:[]).forEach(d=>{ if(DATE.test(d)) out.blockedDays.push(d); });
+  (Array.isArray(p.blockedSlots)?p.blockedSlots:[]).forEach(s=>{ if(SLOT.test(s)) out.blockedSlots.push(s); });
+  (Array.isArray(p.cancelled)?p.cancelled:[]).forEach(id=>{ if(ID.test(id)) out.cancelled.push(id); });
+  return out;
+}
 
 function showToast(msg,type='',dur=3000){
   const t=document.getElementById('toast');
@@ -1032,9 +1202,13 @@ const UI = {
       if(el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 180);
   },
-  handleAdminButton(){
-    if(Session.isActive()){state.isAdmin=true;this.openAdminPanel();}
-    else{this.showAdminLogin();}
+  async handleAdminButton(){
+    if(Vault.ready || await Vault.restore()){
+      state.isAdmin=true; await decryptAll(); this.openAdminPanel();
+      try{ await migratePlaintext(); }catch(e){}
+    } else {
+      this.showAdminLogin();
+    }
   },
   showAdminLogin(){
     document.getElementById('adminLoginOverlay').classList.remove('hidden');
@@ -1072,8 +1246,9 @@ const UI = {
       if(!a.date) return;
       const [ay,am]=a.date.split('-').map(Number);
       if(ay===y && (am-1)===m){
-        const key=(a.phone||a.name||'?').trim();
-        if(!map[key]) map[key]={name:a.name||'-', phone:a.phone||'', count:0};
+        const f=apptFields(a);
+        const key=(f.phone||f.name||'?').trim();
+        if(!map[key]) map[key]={name:f.name||'-', phone:f.phone||'', count:0};
         map[key].count++;
       }
     });
@@ -1103,7 +1278,7 @@ const UI = {
     const sub=document.getElementById('adminSubtitle'); if(sub) sub.textContent=`${aktif} aktif randevu • Canlı senkronize`;
     list.innerHTML=appts.length===0
       ?`<div class="empty-state"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><p>Bu filtrede randevu bulunmuyor.</p></div>`
-      :appts.map(a=>`<div class="appt-item"><div class="appt-meta"><div><div class="appt-name"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg>${escHtml(a.name)}</div><div class="appt-details">📅 ${formatDateTR(a.date)} — ⏰ ${a.time}<br>✂️ ${escHtml(a.services||'—')}<br>📞 ${escHtml(a.phone)}</div></div><span class="badge ${a.date>=td?'badge-success':'badge-accent'}">${a.date>=td?'Aktif':'Geçmiş'}</span></div><button class="btn btn-danger btn-sm" onclick="Logic.cancelAppointment('${a.id}')">İptal Et</button></div>`).join('');
+      :appts.map(a=>{ const f=apptFields(a); return `<div class="appt-item"><div class="appt-meta"><div><div class="appt-name"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg>${escHtml(f.name)}</div><div class="appt-details">📅 ${formatDateTR(a.date)} — ⏰ ${escHtml(a.time)}<br>✂️ ${escHtml(f.services||'—')}<br>📞 ${escHtml(f.phone)}</div></div><span class="badge ${a.date>=td?'badge-success':'badge-accent'}">${a.date>=td?'Aktif':'Geçmiş'}</span></div><button class="btn btn-danger btn-sm" onclick="Logic.cancelAppointment('${a.id}')">İptal Et</button></div>`; }).join('');
     const bd=document.getElementById('blockedDaysList');
     bd.innerHTML=state.db.blockedDays&&state.db.blockedDays.length
       ?'🔒 Kapalı günler: '+state.db.blockedDays.map(d=>formatDateTR(d)).join(', ')
@@ -1238,28 +1413,39 @@ const UI = {
 };
 
 const Logic = {
-  adminLogin(){
+  async adminLogin(){
     const el=document.getElementById('adminPass');
     const p=el.value;
     if(!p){ showToast('Şifre girin!','error'); return; }
-    // Girilen şifrenin özeti hesaplanır; kodda şifrenin kendisi hiç bulunmaz.
+    if(!window.isSecureContext || !(window.crypto && crypto.subtle)){
+      showToast('Şifreleme için güvenli bağlantı (HTTPS) gerekli. Siteyi https adresinden açın.','error',5000); return;
+    }
+    // Şifre, özel anahtarı AÇABİLİYORSA doğrudur. Şifre kodda hiç saklanmaz; yanlış
+    // şifre özel anahtarı çözemez, dolayısıyla müşteri verileri de OKUNAMAZ.
     let ok=false;
-    try{ ok = (Crypt.derive(p, CONFIG._s) === CONFIG._h); }catch(e){ ok=false; }
+    try{ ok = await Vault.unlock(p); }catch(e){ ok=false; }
     if(ok){
-      state.isAdmin=true; Session.save(); UI.openAdminPanel();
-      showToast('Yönetici girişi başarılı','success');
+      state.isAdmin=true;
       el.value='';
+      showToast('Yönetici girişi başarılı','success');
+      await decryptAll();
+      UI.openAdminPanel();
+      // Sunucuda kalmış eski DÜZ (şifresiz) kayıtları şifrele -> açık veri temizlenir
+      try{ await migratePlaintext(); }catch(e){}
     } else {
       showToast('Hatalı şifre!','error');
       el.value='';
     }
   },
   adminLogout(){
-    Session.clear(); state.isAdmin=false;
+    Vault.lock(); state.isAdmin=false;
     document.getElementById('adminPanelOverlay').classList.add('hidden');
     showToast('Çıkış yapıldı');
   },
-  confirmAppointment(){
+  async confirmAppointment(){
+    if(!window.isSecureContext || !(window.crypto && crypto.subtle)){
+      showToast('Güvenli bağlantı (HTTPS) gerekli. Lütfen siteyi https adresinden açın.','error',5000); return;
+    }
     const name=document.getElementById('guestName').value.trim();
     const phone=document.getElementById('guestPhone').value.trim();
     if(!name){showToast('Lütfen adınızı girin.','error');return;}
@@ -1278,19 +1464,26 @@ const Logic = {
       showToast('Bu saat az önce doldu! Başka saat seçin.','error');
       UI.showTimeSlots(); document.getElementById('bookingFormSection').classList.remove('visible'); return;
     }
+    const services=state.selectedServices.join(', ');
+    const display={ name, phone, services, date:state.selectedDate, time:state.selectedTime };
+    // Ad/telefon/hizmet ŞİFRELENEREK saklanır; düz metin sunucuya ASLA gönderilmez.
+    let enc;
+    try{ enc = await Vault.encrypt({ name, phone, services }); }
+    catch(err){ showToast('Şifreleme hatası, lütfen tekrar deneyin.','error'); return; }
     const appt={
-      id:generateId(), name, phone,
-      services:state.selectedServices.join(', '),
+      id:generateId(),
       date:state.selectedDate, time:state.selectedTime,
-      createdAt:new Date().toLocaleString('tr-TR')
+      createdAt:new Date().toLocaleString('tr-TR'),
+      enc
     };
+    PlainCache[appt.id]={ name, phone, services };
     state.db.appointments.push(appt);
     Ledger.sync([appt], state.db.cancelled);
     Net.publish();
-    Net.sendPush(appt); // Dükkan sahibinin telefonuna anlık bildirim gönder
+    Net.sendPush(display); // Dükkan sahibine anlık bildirim (ad/telefon İÇERMEZ)
     state.selectedDate=null; state.selectedTime=null; state.selectedServices=[];
     state.formReady=false;
-    UI.showSuccess(appt);
+    UI.showSuccess(display);
   },
   cancelAppointment(id){
     if(!confirm('Bu randevuyu iptal etmek istediğine emin misin? Tutar hesaptan düşülecek.')) return;
@@ -1327,19 +1520,16 @@ const Net = {
     const clientId='rc_'+Math.random().toString(16).substr(2,8);
     state.mqttClient=mqtt.connect(CONFIG.MQTT_BROKER,{clean:false,clientId,reconnectPeriod:3000});
     state.mqttClient.on('connect',()=>{UI.setConnection(true);state.mqttClient.subscribe(CONFIG.MQTT_TOPIC,{qos:1});});
-    state.mqttClient.on('message',(topic,msg)=>{
+    state.mqttClient.on('message', async (topic,msg)=>{
       try{
         const p = JSON.parse(msg.toString());
         if(!p || typeof p !== 'object') return;
-        state.db = {
-          appointments: p.appointments || [],
-          blockedDays: p.blockedDays || [],
-          blockedSlots: p.blockedSlots || [],
-          cancelled: p.cancelled || []
-        };
+        // Gelen veri ekrana basılmadan ÖNCE biçim denetiminden geçer (enjeksiyon kalkanı)
+        state.db = sanitizeDb(p);
         // Geçmiş kayıtlar cihazda arşivlenir -> yıllık gelir asla sıfırlanmaz
         Ledger.sync(state.db.appointments, state.db.cancelled);
         UI.redrawCalendar();
+        if(state.isAdmin && Vault.ready){ await decryptAll(); }
         if(state.isAdmin && !document.getElementById('adminPanelOverlay').classList.contains('hidden')){
           if(document.getElementById('adminRandevular').style.display!=='none') UI.renderAdminPanel();
           if(document.getElementById('adminHesap').style.display!=='none') Finance.render();
@@ -1362,7 +1552,8 @@ const Net = {
   // Müşterinin ekranında hiçbir şey açılmaz; arka planda sessizce gönderilir.
   sendPush(appt){
     try{
-      const body = `${appt.name} (${appt.phone})\n${appt.services}\n${formatDateTR(appt.date)} - ${appt.time}`;
+      // GİZLİLİK: ntfy konusu herkese açık olabildiği için ad/telefon GÖNDERİLMEZ.
+      const body = `${formatDateTR(appt.date)} - ${appt.time}\n${appt.services||''}\nAyrıntı için panele bakın.`;
       fetch(`${CONFIG.NTFY_SERVER}/${CONFIG.NTFY_TOPIC}`, {
         method: 'POST',
         body: body,
@@ -1408,7 +1599,8 @@ const Finance = {
   totals(appt){
     let gelir=0, gider=0;
     const map=this.pmap();
-    (appt.services||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(name=>{
+    const svc=apptFields(appt).services;
+    (svc||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(name=>{
       const p=map[this.norm(name)];
       if(p){ gelir+=Number(p.price)||0; gider+=Number(p.cost)||0; }
     });
@@ -1444,7 +1636,8 @@ const Finance = {
     box.innerHTML=list.map(a=>{
       const t=this.totals(a);
       const kar=t.gelir-t.gider;
-      return `<div class="fin-bd-row"><div class="fin-bd-left">${escHtml(a.name||'-')}<small>${formatDateTR(a.date)} · ${a.time||''} · ${escHtml(a.services||'-')}</small></div><div class="fin-bd-amt">${this.fmt(kar)}</div></div>`;
+      const f=apptFields(a);
+      return `<div class="fin-bd-row"><div class="fin-bd-left">${escHtml(f.name||'-')}<small>${formatDateTR(a.date)} · ${escHtml(a.time||'')} · ${escHtml(f.services||'-')}</small></div><div class="fin-bd-amt">${this.fmt(kar)}</div></div>`;
     }).join('');
   },
   buckets(period){
