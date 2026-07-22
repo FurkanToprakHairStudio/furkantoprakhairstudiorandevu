@@ -1220,11 +1220,16 @@ const UI = {
     document.getElementById('adminPass').value='';
   },
   openAdminPanel(){
+    // KİLİT: Şifre girilmeden (özel anahtar açılmadan) panel ASLA açılmaz.
+    // Konsoldan UI.openAdminPanel() yazılsa bile giriş ekranına döner.
+    if(!Vault.ready){ this.showAdminLogin(); return; }
     document.getElementById('adminLoginOverlay').classList.add('hidden');
     document.getElementById('adminPanelOverlay').classList.remove('hidden');
     this.showAdminView('home');
   },
   showAdminView(view){
+    // KİLİT: yetkisiz (şifresiz) hiçbir yönetici ekranı gösterilmez.
+    if(!Vault.ready){ this.showAdminLogin(); return; }
     ['Home','Randevular','Hesap','Analiz'].forEach(v=>{
       const el=document.getElementById('admin'+v);
       if(el) el.style.display='none';
@@ -1486,6 +1491,7 @@ const Logic = {
     UI.showSuccess(display);
   },
   cancelAppointment(id){
+    if(!Vault.ready){ showToast('Yetkisiz işlem — önce giriş yapın.','error'); return; } // KİLİT
     if(!confirm('Bu randevuyu iptal etmek istediğine emin misin? Tutar hesaptan düşülecek.')) return;
     state.db.appointments=state.db.appointments.filter(a=>a.id!==id);
     // İptal, tüm cihazlarda hesap defterinden düşsün diye kayıtla birlikte yayınlanır
@@ -1501,6 +1507,7 @@ const Logic = {
     UI.renderAnaliz();
   },
   blockDay(){
+    if(!Vault.ready){ showToast('Yetkisiz işlem — önce giriş yapın.','error'); return; } // KİLİT
     const d=document.getElementById('adminBlockDate').value.trim();
     if(!d||!/^\d{4}-\d{2}-\d{2}$/.test(d)){showToast('Format: 2025-06-15','error');return;}
     if(!state.db.blockedDays.includes(d)){
@@ -1509,6 +1516,7 @@ const Logic = {
     } else { showToast('Bu gün zaten kapalı.','error'); }
   },
   unblockDay(){
+    if(!Vault.ready){ showToast('Yetkisiz işlem — önce giriş yapın.','error'); return; } // KİLİT
     const d=document.getElementById('adminBlockDate').value.trim();
     state.db.blockedDays=state.db.blockedDays.filter(x=>x!==d);
     Net.publish(); showToast(`${formatDateTR(d)} açıldı.`,'success'); UI.renderAdminPanel(); UI.redrawCalendar();
