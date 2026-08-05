@@ -59,7 +59,16 @@
     --r-sm: 10px; --r-md: 16px; --r-lg: 24px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--cream); color: var(--ink); font-family: 'DM Sans', sans-serif; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  /* Sayfanın en altı / aşağı çekince görünen taşma alanı: alt bilgi çubuğuyla aynı koyu renk */
+  html { background: var(--ink); }
+  /* DİKKAT: body'ye renk VERİLMEZ — verilirse alttaki arka plan katmanının üstünü kapatır. */
+  body { background: transparent; color: var(--ink); font-family: 'DM Sans', sans-serif; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  /* Site arka planı: arkaplan.png (klasördeki dosya). Sabit durur, kaydırınca kaymaz.
+     Dosya yoksa altındaki krem renk görünür — site hiçbir şekilde bozulmaz. */
+  body::before {
+    content:''; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:var(--cream) url('arkaplan.png') center center / cover no-repeat;
+  }
 
   #heroSection {
     width: 100%;
@@ -275,7 +284,9 @@
   .success-warning strong { display:block; margin-bottom:2px; font-size:12px; letter-spacing:0.5px; text-transform:uppercase; }
   .success-new-btn { margin-top:20px; max-width:360px; width:100%; }
 
-  #siteFooter { width:100%; background:var(--ink); color:rgba(255,255,255,0.55); padding:28px 20px 24px; text-align:center; font-size:13px; line-height:2; }
+  /* box-shadow: alt bilgi çubuğunun KOYU rengini sayfanın en altına kadar uzatır
+     (sayfa yüksekliğini artırmaz, altta beyaz/krem şerit kalmaz). */
+  #siteFooter { width:100%; background:var(--ink); color:rgba(255,255,255,0.55); padding:28px 20px 24px; text-align:center; font-size:13px; line-height:2; box-shadow:0 50vh 0 50vh var(--ink); }
   
   .footer-contact-wrapper {
     display: flex;
@@ -520,7 +531,15 @@
   .amb-text { display:flex; flex-direction:column; gap:3px; }
   .amb-title { font-size:19px; font-weight:700; color:var(--ink); }
   .amb-sub { font-size:13px; color:var(--ink-muted); }
-  .admin-logout { margin-top:28px; }
+  .admin-logout { margin-top:14px; }
+
+  /* Yedek & Onar kartı */
+  .admin-yedek { margin-top:26px; background:var(--warm-white); border:1px solid var(--border); border-radius:var(--r-lg); padding:16px 18px; box-shadow:var(--shadow-sm); }
+  .ay-baslik { font-size:13px; font-weight:700; color:var(--ink); margin-bottom:4px; }
+  .ay-bilgi { font-size:12px; color:var(--ink-muted); line-height:1.5; margin-bottom:12px; }
+  .ay-bilgi.ay-uyari { color:#b45309; font-weight:600; }
+  .ay-btn { width:100%; border:1px solid var(--border); background:transparent; border-radius:var(--r-md); padding:11px 10px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; color:var(--ink); cursor:pointer; transition:all 0.15s; }
+  .ay-btn:hover { border-color:var(--accent-border); background:var(--accent-light); }
 
   /* Hesap Defteri */
   .finance-period { display:flex; gap:6px; background:var(--warm-white); border:1px solid var(--border); border-radius:100px; padding:5px; margin-bottom:20px; box-shadow:var(--shadow-sm); }
@@ -695,6 +714,11 @@
         <span class="amb-icon">👥</span>
         <span class="amb-text"><span class="amb-title">Müşteri Analizi</span><span class="amb-sub">En çok gelen müşteriler</span></span>
       </button>
+    </div>
+    <div class="admin-yedek">
+      <div class="ay-baslik">🛡️ Yedek &amp; Onarım</div>
+      <div class="ay-bilgi" id="adminYedekBilgi">Kontrol ediliyor…</div>
+      <button class="ay-btn" onclick="Logic.onarArsivden()">Sunucuyu Arşivden Onar</button>
     </div>
     <button class="btn btn-secondary admin-logout" onclick="Logic.adminLogout()">Çıkış Yap</button>
   </div>
@@ -930,10 +954,53 @@ const Vault = {
   priv: null,          // bu oturumda açılmış özel anahtar (RSA-OAEP)
   ready: false,        // panel açmaya / veri çözmeye yetkili miyiz?
   _pub: null,          // önbelleğe alınmış açık anahtar
-  SKEY: 'brb_sk_v1',   // yalnızca bu sekme oturumu boyunca (kapanınca silinir) anahtarı tutar
+  SKEY: 'brb_sk_v1',   // YEDEK: IndexedDB çalışmazsa yalnızca bu sekme oturumu boyunca tutar
+  DBNAME:'brb_vault', DBSTORE:'k', DBREC:'priv',  // KALICI oturumun saklandığı yer
 
   _u8(b64){ const s=atob(b64), u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; },
   _b64(buf){ const u=new Uint8Array(buf); let s=''; for(let i=0;i<u.length;i++) s+=String.fromCharCode(u[i]); return btoa(s); },
+
+  // ----- KALICI OTURUM (IndexedDB) -----
+  // Açılmış özel anahtar, DIŞA AKTARILAMAZ (non-extractable) bir CryptoKey nesnesi olarak
+  // saklanır: tarayıcı/sekme kapansa bile kalır, yalnızca "Çıkış Yap" ile silinir.
+  // Ham baytları hiçbir şekilde okunamaz -> localStorage'a base64 yazmaktan daha güvenli.
+  _idb(){
+    return new Promise((res,rej)=>{
+      if(!window.indexedDB) return rej(new Error('idb-yok'));
+      const r = indexedDB.open(this.DBNAME, 1);
+      r.onupgradeneeded = ()=>{ try{ r.result.createObjectStore(this.DBSTORE); }catch(e){} };
+      r.onsuccess = ()=>res(r.result);
+      r.onerror   = ()=>rej(r.error||new Error('idb-acilamadi'));
+      r.onblocked = ()=>rej(new Error('idb-bloke'));
+    });
+  },
+  async _idbRun(mode, fn){
+    const db = await this._idb();
+    try{
+      return await new Promise((res,rej)=>{
+        const tx = db.transaction(this.DBSTORE, mode);
+        const out = fn(tx.objectStore(this.DBSTORE));
+        tx.oncomplete = ()=>res(out && out.result !== undefined ? out.result : null);
+        tx.onerror    = ()=>rej(tx.error||new Error('idb-islem'));
+        tx.onabort    = ()=>rej(tx.error||new Error('idb-iptal'));
+      });
+    } finally { try{ db.close(); }catch(e){} }
+  },
+  // Oturumu bu cihazda kalıcı kıl. IndexedDB yoksa/engelliyse eski (sekme-ömürlü) yedeğe düşer.
+  async remember(pkcs8){
+    try{
+      await this._idbRun('readwrite', st=>st.put({ key:this.priv, pub:CONFIG.PUBKEY }, this.DBREC));
+      try{ sessionStorage.removeItem(this.SKEY); }catch(e){}
+      return true;
+    }catch(e){
+      try{ if(pkcs8) sessionStorage.setItem(this.SKEY, this._b64(pkcs8)); }catch(e2){}
+      return false;
+    }
+  },
+  async forget(){
+    try{ await this._idbRun('readwrite', st=>st.delete(this.DBREC)); }catch(e){}
+    try{ sessionStorage.removeItem(this.SKEY); }catch(e){}
+  },
 
   async _wrapKey(password, saltU8){
     const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
@@ -958,19 +1025,30 @@ const Vault = {
       const pkcs8 = await this._openPkcs8(password);
       this.priv = await crypto.subtle.importKey('pkcs8', pkcs8, { name:'RSA-OAEP', hash:'SHA-256' }, false, ['decrypt']);
       this.ready = true;
-      try{ sessionStorage.setItem(this.SKEY, this._b64(pkcs8)); }catch(e){}
+      // Oturum bu cihazda AÇIK KALIR — "Çıkış Yap" denene kadar şifre bir daha sorulmaz.
+      try{ await this.remember(pkcs8); }catch(e){}
       return true;
     }catch(e){ this.priv=null; this.ready=false; return false; }
   },
-  // Sayfa yenilenince aynı sekme oturumundaki anahtarı şifre sormadan geri yükle
+  // Site tekrar açılınca/yenilenince kayıtlı anahtarı şifre sormadan geri yükle
   async restore(){
+    // 1) Cihazdaki kalıcı oturum
+    try{
+      const rec = await this._idbRun('readonly', st=>st.get(this.DBREC));
+      if(rec && rec.key && rec.key.type==='private'){
+        if(rec.pub === CONFIG.PUBKEY){ this.priv = rec.key; this.ready = true; return true; }
+        await this.forget();   // anahtar çifti değişmiş -> eski oturum geçersiz
+      }
+    }catch(e){}
+    // 2) Yedek: yalnızca bu sekme oturumu (IndexedDB kullanılamadıysa)
     try{
       const b = sessionStorage.getItem(this.SKEY); if(!b) return false;
       this.priv = await crypto.subtle.importKey('pkcs8', this._u8(b), { name:'RSA-OAEP', hash:'SHA-256' }, false, ['decrypt']);
       this.ready = true; return true;
     }catch(e){ this.ready=false; return false; }
   },
-  lock(){ this.priv=null; this.ready=false; try{ sessionStorage.removeItem(this.SKEY); }catch(e){} },
+  // Çıkış: anahtar hem bellekten hem cihazdan silinir
+  async lock(){ this.priv=null; this.ready=false; await this.forget(); },
 
   // Müşteri tarafı: {name,phone,services} -> hibrit şifreli blok (sadece açık anahtar gerekir)
   async encrypt(obj){
@@ -1081,7 +1159,9 @@ window.__brbSetup = async function(pass){
 
 // (Eski cookie/localStorage JETONLU oturum KALDIRILDI — o jeton kaynaktaki _h'den
 //  üretilebildiği için şifresiz panele girmeyi mümkün kılıyordu. Artık "oturum" =
-//  özel anahtarın şifreyle açılmış hali; sadece bu sekme oturumu boyunca Vault.restore() ile.)
+//  özel anahtarın şifreyle açılmış hali. Bu anahtar, dışa aktarılamaz bir CryptoKey
+//  olarak IndexedDB'de tutulur: site kapatılıp tekrar açılsa bile Vault.restore() ile
+//  şifresiz geri gelir, YALNIZCA "Çıkış Yap" ile silinir. Şifre yine hiçbir yerde saklanmaz.)
 
 // ===== KALICI HESAP DEFTERİ ARŞİVİ =====
 // Geçmiş randevular cihazda da saklanır; böylece ay/yıl değişince ya da
@@ -1117,8 +1197,22 @@ const state = {
   isConnected:false, isAdmin:false, mqttClient:null,
   flatpickr:null, selectedDate:null, selectedTime:null,
   selectedServices:[], adminFilter:'all',
-  formReady: false
+  formReady: false,
+  dbSynced: false,     // sunucudaki kayıt listesi geldi mi? gelmeden YAYIN YAPILMAZ
+  serverStale: false,  // sunucudaki liste bizdekinden eksik mi? (onarım gerekir)
+  sunucuSayisi: 0,     // sunucudan en son gelen paketteki randevu sayısı
+  onarimSayisi: 0
 };
+
+// Açılışta cihazdaki arşivi ön yükle. Böylece sunucudan veri gelmeden yapılan bir yayın
+// bile geçmişi silemez; elimizdeki kayıtlar gelen veriyle birleşir.
+(function arsividenYukle(){
+  try{
+    const o = Ledger._read();
+    state.db.cancelled = (o.d||[]).slice();
+    state.db.appointments = Object.keys(o.a||{}).map(k=>o.a[k]).filter(a=>a&&a.id&&a.date);
+  }catch(e){}
+})();
 
 function formatDateTR(s) {
   if(!s) return '';
@@ -1165,6 +1259,43 @@ function sanitizeDb(p){
   return out;
 }
 
+// ===== RANDEVU KAYBINI ÖNLEYEN BİRLEŞTİRME =====
+// ESKİ SORUN: her cihaz kendi kopyasını olduğu gibi yayınlıyordu. İki kişi birbirine yakın
+// anda randevu alınca "son yayınlayan kazanıyor", diğerinin randevusu SİLİNİYORDU.
+// ÇÖZÜM: gelen veri ezmez, BİRLEŞİR. Randevular id'ye göre birleşir; bir kayıt ancak
+// gerçekten iptal edildiyse (kalıcı iptal listesinde varsa) düşer. Böylece hiçbir yayın
+// başka bir cihazın randevusunu yok edemez.
+function mergeDb(local, incoming){
+  local = local || { appointments:[], blockedDays:[], blockedSlots:[], cancelled:[] };
+  incoming = incoming || { appointments:[], blockedDays:[], blockedSlots:[], cancelled:[] };
+  const out = { appointments:[], blockedDays:[], blockedSlots:[], cancelled:[] };
+  // 1) İptal listesi: iki tarafın birleşimi — asla küçülmez (iptal kalıcıdır)
+  const del = {};
+  (local.cancelled||[]).concat(incoming.cancelled||[]).forEach(id=>{
+    if(id && !del[id]){ del[id]=1; out.cancelled.push(id); }
+  });
+  if(out.cancelled.length>3000) out.cancelled = out.cancelled.slice(-3000);
+  // 2) Randevular: id birleşimi, iptal edilenler hariç
+  const m = {}, sira = [];
+  const ekle = a=>{ if(a && a.id && !del[a.id] && !m[a.id]){ m[a.id]=a; sira.push(a.id); } };
+  (incoming.appointments||[]).forEach(ekle);
+  (local.appointments||[]).forEach(ekle);
+  out.appointments = sira.map(id=>m[id]);
+  // 3) Kapalı gün/saatler: yöneticinin "aç" işlemi geri alınmasın diye ağdan gelen geçerlidir
+  out.blockedDays  = (incoming.blockedDays||[]).slice();
+  out.blockedSlots = (incoming.blockedSlots||[]).slice();
+  return out;
+}
+// Sunucudan gelen paket bizdeki bilgiden EKSİK mi? (eksikse geri yayınlayıp onarırız)
+function eksikSayisi(incoming, merged){
+  const vari = {}; (incoming.appointments||[]).forEach(a=>{ if(a&&a.id) vari[a.id]=1; });
+  const varc = {}; (incoming.cancelled||[]).forEach(id=>{ varc[id]=1; });
+  let n = 0;
+  (merged.appointments||[]).forEach(a=>{ if(a&&a.id&&!vari[a.id]) n++; });
+  (merged.cancelled||[]).forEach(id=>{ if(!varc[id]) n++; });
+  return n;
+}
+
 function showToast(msg,type='',dur=3000){
   const t=document.getElementById('toast');
   t.textContent=msg; t.className=type?`show ${type}`:'show';
@@ -1174,6 +1305,21 @@ function showToast(msg,type='',dur=3000){
 const UI = {
   setConnection(on){
     state.isConnected=on;
+  },
+  // Yönetici panelindeki "Yedek & Onarım" bilgi satırı
+  yedekBilgisiniGuncelle(){
+    const el = document.getElementById('adminYedekBilgi');
+    if(!el) return;
+    let arsiv = 0;
+    try{ const o = Ledger._read(); arsiv = Object.keys(o.a||{}).length; }catch(e){}
+    if(!state.dbSynced){ el.className='ay-bilgi'; el.textContent='Sunucu verisi bekleniyor…'; return; }
+    if(state.serverStale){
+      el.className='ay-bilgi ay-uyari';
+      el.textContent=`Sunucuda ${state.sunucuSayisi} kayıt görünüyor, elimizde ${state.db.appointments.length}. Eksik kayıtlar geri gönderiliyor…`;
+    } else {
+      el.className='ay-bilgi';
+      el.textContent=`Sunucu ${state.sunucuSayisi} kayıt · Bu cihazın arşivi ${arsiv} kayıt. Her şey yerinde — randevular her açılışta bu cihaza da yedekleniyor.`;
+    }
   },
   openNavMenu() {
     document.getElementById('navOverlay').classList.add('visible');
@@ -1226,6 +1372,7 @@ const UI = {
     document.getElementById('adminLoginOverlay').classList.add('hidden');
     document.getElementById('adminPanelOverlay').classList.remove('hidden');
     this.showAdminView('home');
+    Logic.otomatikOnar();   // panel her açılışta bir kez arşiv kontrolü + onarım
   },
   showAdminView(view){
     // KİLİT: yetkisiz (şifresiz) hiçbir yönetici ekranı gösterilmez.
@@ -1238,7 +1385,8 @@ const UI = {
     const el=document.getElementById('admin'+(map[view]||'Home'));
     if(el) el.style.display='';
     const ov=document.getElementById('adminPanelOverlay'); if(ov) ov.scrollTop=0;
-    if(view==='randevular') this.renderAdminPanel();
+    if(view==='home') this.yedekBilgisiniGuncelle();
+    else if(view==='randevular') this.renderAdminPanel();
     else if(view==='hesap') Finance.render();
     else if(view==='analiz') this.renderAnaliz();
   },
@@ -1442,9 +1590,13 @@ const Logic = {
       el.value='';
     }
   },
-  adminLogout(){
-    Vault.lock(); state.isAdmin=false;
+  async adminLogout(){
+    state.isAdmin=false;
     document.getElementById('adminPanelOverlay').classList.add('hidden');
+    // Çözülmüş müşteri bilgileri bellekten de silinsin
+    for(const id in PlainCache) delete PlainCache[id];
+    await Vault.lock();               // anahtarı cihazdan da siler
+    UI.redrawCalendar();
     showToast('Çıkış yapıldı');
   },
   async confirmAppointment(){
@@ -1465,6 +1617,9 @@ const Logic = {
         UI.showTimeSlots(); document.getElementById('bookingFormSection').classList.remove('visible'); return;
       }
     }
+    // Kaydetmeden hemen önce sunucudaki en güncel listeyi çek: hem çift randevuyu,
+    // hem de eski kopyayla yayın yapıp başkasının randevusunu silmeyi önler.
+    await Net.tazele();
     if(state.db.appointments.some(a=>a.date===state.selectedDate&&a.time===state.selectedTime)){
       showToast('Bu saat az önce doldu! Başka saat seçin.','error');
       UI.showTimeSlots(); document.getElementById('bookingFormSection').classList.remove('visible'); return;
@@ -1483,8 +1638,13 @@ const Logic = {
     };
     PlainCache[appt.id]={ name, phone, services };
     state.db.appointments.push(appt);
+    // Yayın başarısızsa randevu ALINMAMIŞ sayılır: geri al ve müşteriye "başarılı" deme.
+    if(!Net.publish()){
+      state.db.appointments = state.db.appointments.filter(a=>a.id!==appt.id);
+      delete PlainCache[appt.id];
+      return;
+    }
     Ledger.sync([appt], state.db.cancelled);
-    Net.publish();
     Net.sendPush(display); // Dükkan sahibine anlık bildirim (ad/telefon İÇERMEZ)
     state.selectedDate=null; state.selectedTime=null; state.selectedServices=[];
     state.formReady=false;
@@ -1493,13 +1653,19 @@ const Logic = {
   cancelAppointment(id){
     if(!Vault.ready){ showToast('Yetkisiz işlem — önce giriş yapın.','error'); return; } // KİLİT
     if(!confirm('Bu randevuyu iptal etmek istediğine emin misin? Tutar hesaptan düşülecek.')) return;
+    const eskiAppts = state.db.appointments, eskiCancelled = state.db.cancelled;
     state.db.appointments=state.db.appointments.filter(a=>a.id!==id);
     // İptal, tüm cihazlarda hesap defterinden düşsün diye kayıtla birlikte yayınlanır
     if(!Array.isArray(state.db.cancelled)) state.db.cancelled=[];
     if(state.db.cancelled.indexOf(id)<0) state.db.cancelled.push(id);
     if(state.db.cancelled.length>3000) state.db.cancelled=state.db.cancelled.slice(-3000);
+    // Yayın başarısızsa iptali geri al — yoksa randevu sadece bu cihazda kaybolur
+    if(!Net.publish()){
+      state.db.appointments = eskiAppts; state.db.cancelled = eskiCancelled;
+      UI.renderAdminPanel();
+      return;
+    }
     Ledger.remove(id);
-    Net.publish();
     showToast('Randevu iptal edildi, tutar hesaptan düşüldü.','success');
     UI.renderAdminPanel();
     // İptal edilen tutar gelir/gider/kâr'dan otomatik düşsün
@@ -1511,15 +1677,48 @@ const Logic = {
     const d=document.getElementById('adminBlockDate').value.trim();
     if(!d||!/^\d{4}-\d{2}-\d{2}$/.test(d)){showToast('Format: 2025-06-15','error');return;}
     if(!state.db.blockedDays.includes(d)){
-      state.db.blockedDays.push(d); Net.publish();
+      const eski = state.db.blockedDays.slice();
+      state.db.blockedDays.push(d);
+      if(!Net.publish()){ state.db.blockedDays = eski; return; }
       showToast(`${formatDateTR(d)} kapatıldı.`,'success'); UI.renderAdminPanel(); UI.redrawCalendar();
     } else { showToast('Bu gün zaten kapalı.','error'); }
   },
   unblockDay(){
     if(!Vault.ready){ showToast('Yetkisiz işlem — önce giriş yapın.','error'); return; } // KİLİT
     const d=document.getElementById('adminBlockDate').value.trim();
+    const eski = state.db.blockedDays.slice();
     state.db.blockedDays=state.db.blockedDays.filter(x=>x!==d);
-    Net.publish(); showToast(`${formatDateTR(d)} açıldı.`,'success'); UI.renderAdminPanel(); UI.redrawCalendar();
+    if(!Net.publish()){ state.db.blockedDays = eski; return; }
+    showToast(`${formatDateTR(d)} açıldı.`,'success'); UI.renderAdminPanel(); UI.redrawCalendar();
+  },
+  // Panel her açıldığında BİR KEZ kendiliğinden çalışır: sunucudaki liste cihazdaki
+  // arşivle karşılaştırılır, eksik randevu varsa geri yüklenir. Sonucu bildirir.
+  async otomatikOnar(){
+    for(let i=0; i<40 && !state.dbSynced; i++) await new Promise(r=>setTimeout(r,250));
+    if(!Vault.ready) return;                       // bu arada çıkış yapılmışsa dokunma
+    if(!state.dbSynced){ showToast('Sunucu verisine ulaşılamadı, onarım yapılamadı.','error',4000); return; }
+    this.onarArsivden();
+  },
+  // Panelden elle onarım: cihazdaki arşivi sunucuya geri yükler.
+  // (Otomatik onarım zaten çalışır; bu buton yöneticinin elinde acil düğme olsun diye.)
+  onarArsivden(){
+    if(!Vault.ready){ showToast('Yetkisiz işlem — önce giriş yapın.','error'); return; } // KİLİT
+    if(!state.dbSynced){ showToast('Sunucu verisi henüz gelmedi, birkaç saniye bekleyin.','error',4000); return; }
+    let arsiv = [];
+    try{ const o = Ledger._read(); arsiv = Object.keys(o.a||{}).map(k=>o.a[k]); }catch(e){}
+    const oncekiSayi = state.db.appointments.length;
+    state.db = mergeDb({ appointments:arsiv, cancelled:state.db.cancelled,
+                         blockedDays:state.db.blockedDays, blockedSlots:state.db.blockedSlots },
+                       state.db);
+    const eklenen = state.db.appointments.length - oncekiSayi;
+    // Arşivden bir şey eklenmemiş olsa bile SUNUCU geride kalmış olabilir; o zaman da yayınla.
+    const sunucuGeride = state.serverStale || state.db.appointments.length > state.sunucuSayisi;
+    if(eklenen<=0 && !sunucuGeride){ showToast('Sunucudaki kayıtlar eksiksiz — onarıma gerek yok.','success',4000); UI.yedekBilgisiniGuncelle(); return; }
+    if(!Net.publish()) return;
+    Ledger.sync(state.db.appointments, state.db.cancelled);
+    showToast(eklenen>0 ? `${eklenen} randevu arşivden geri yüklendi.`
+                        : 'Sunucudaki eksik kayıtlar geri gönderildi.','success',4500);
+    UI.yedekBilgisiniGuncelle(); UI.renderAdminPanel(); UI.redrawCalendar();
   }
 };
 
@@ -1527,15 +1726,34 @@ const Net = {
   init(){
     const clientId='rc_'+Math.random().toString(16).substr(2,8);
     state.mqttClient=mqtt.connect(CONFIG.MQTT_BROKER,{clean:false,clientId,reconnectPeriod:3000});
-    state.mqttClient.on('connect',()=>{UI.setConnection(true);state.mqttClient.subscribe(CONFIG.MQTT_TOPIC,{qos:1});});
+    state.mqttClient.on('connect',()=>{
+      UI.setConnection(true);
+      state.mqttClient.subscribe(CONFIG.MQTT_TOPIC,{qos:1});
+      // Sunucuda kayıtlı veri yoksa mesaj hiç gelmez; 10 sn sonra yayına izin ver
+      // (elimizde zaten cihaz arşivi var, o yüzden bu yayın da veri silmez).
+      if(!state.dbSynced) setTimeout(()=>{ state.dbSynced = true; }, 10000);
+    });
     state.mqttClient.on('message', async (topic,msg)=>{
       try{
         const p = JSON.parse(msg.toString());
         if(!p || typeof p !== 'object') return;
         // Gelen veri ekrana basılmadan ÖNCE biçim denetiminden geçer (enjeksiyon kalkanı)
-        state.db = sanitizeDb(p);
+        const gelen = sanitizeDb(p);
+        // ÜZERİNE YAZMA YOK — BİRLEŞTİRME VAR: kimsenin randevusu düşmez
+        const birlesik = mergeDb(state.db, gelen);
+        state.dbSynced = true;
+        state.sunucuSayisi = (gelen.appointments||[]).length;
+        // Sunucudaki liste bizdekinden eksikse (biri eski kopyayla üzerine yazmış,
+        // ya da kayıtlar kaybolmuş) birleşmiş hali geri yayınlayıp onarırız.
+        state.serverStale = eksikSayisi(gelen, birlesik) > 0;
+        state.db = birlesik;
+        if(state.serverStale) this.onarimPlanla();
+        else state.onarimSayisi = 0;   // sunucu tamamlandı: onarım sayacı sıfırlanır ki
+                                       // ilerideki bir kayıp için kota dolmuş olmasın
         // Geçmiş kayıtlar cihazda arşivlenir -> yıllık gelir asla sıfırlanmaz
         Ledger.sync(state.db.appointments, state.db.cancelled);
+        if(state._tazeBekleyen) state._tazeBekleyen();   // tazele() bekliyorsa uyandır
+        UI.yedekBilgisiniGuncelle();
         UI.redrawCalendar();
         if(state.isAdmin && Vault.ready){ await decryptAll(); }
         if(state.isAdmin && !document.getElementById('adminPanelOverlay').classList.contains('hidden')){
@@ -1552,24 +1770,102 @@ const Net = {
     state.mqttClient.on('offline',()=>UI.setConnection(false));
     state.mqttClient.on('error',()=>UI.setConnection(false));
   },
-  publish(){
-    if(!state.mqttClient||!state.isConnected){showToast('Bağlantı yok, bekleyin.','error');return;}
-    state.mqttClient.publish(CONFIG.MQTT_TOPIC,JSON.stringify(state.db),{qos:1,retain:true});
+  // Yayın. Başarılıysa true döner — çağıran taraf başarısızlıkta işlemi geri alır.
+  publish(sessiz){
+    if(!state.mqttClient||!state.isConnected){
+      if(!sessiz) showToast('Bağlantı yok, bekleyin.','error');
+      return false;
+    }
+    // KİLİT: sunucudaki liste daha gelmeden yayın yapılırsa eldeki eksik liste
+    // kayıtlı verinin üzerine yazar ve randevular silinir. Buna izin verilmez.
+    if(!state.dbSynced){
+      if(!sessiz) showToast('Kayıtlar sunucudan alınıyor, birkaç saniye sonra tekrar deneyin.','error',4500);
+      return false;
+    }
+    try{
+      state.mqttClient.publish(CONFIG.MQTT_TOPIC,JSON.stringify(state.db),{qos:1,retain:true});
+      state.serverStale = false;
+      return true;
+    }catch(e){
+      if(!sessiz) showToast('Gönderilemedi, tekrar deneyin.','error');
+      return false;
+    }
   },
+  // Sunucudaki liste eksikse birleşmiş hali geri yayınla (kendiliğinden onarım).
+  // Rastgele gecikme: aynı anda açık birden fazla cihaz üst üste yayın yapmasın.
+  // YAZMADAN ÖNCE OKU: aboneliği tazeleyip sunucudaki en güncel listeyi çektirir.
+  // İki kişi aynı anda randevu alırken birinin kaydının kaybolmasını önler.
+  tazele(sure=2500){
+    // Aynı anda birden çok tazeleme YAPILMAZ: iç içe geçen abonelik iptalleri
+    // istemciyi abonesiz bırakıp güncellemeleri kesebilir. Devam eden varsa o beklenir.
+    if(this._tazeSoz) return this._tazeSoz;
+    if(!state.mqttClient || !state.isConnected || !state.dbSynced) return Promise.resolve(false);
+    this._tazeSoz = new Promise(res=>{
+      let bitti=false, t=null;
+      const bit = ok=>{
+        if(bitti) return; bitti=true;
+        state._tazeBekleyen=null; clearTimeout(t); this._tazeSoz=null;
+        // Ne olursa olsun abonelikle çık — aksi halde güncellemeler gelmez.
+        try{ state.mqttClient.subscribe(CONFIG.MQTT_TOPIC,{qos:1}); }catch(e){}
+        res(ok);
+      };
+      t = setTimeout(()=>bit(false), sure);
+      state._tazeBekleyen = ()=>bit(true);
+      try{
+        state.mqttClient.unsubscribe(CONFIG.MQTT_TOPIC, ()=>{
+          try{ state.mqttClient.subscribe(CONFIG.MQTT_TOPIC,{qos:1}); }catch(e){ bit(false); }
+        });
+      }catch(e){ bit(false); }
+    });
+    return this._tazeSoz;
+  },
+  _tazeSoz: null,
+  onarimPlanla(){
+    // Tek seferde tek onarım yeter. Sayı sınırı YOK: birleştirme tek yönlü büyüdüğü için
+    // onarım kendiliğinden durur, ama kota koyulursa ilerideki bir kayıp onarılamaz kalır.
+    if(this._onarimT) return;
+    this._onarimT = setTimeout(()=>{
+      this._onarimT = null;
+      if(!state.serverStale) return;          // bu arada biri tam listeyi yayınlamışsa gerek yok
+      state.onarimSayisi++;
+      this.publish(true);
+    }, 500 + Math.floor(Math.random()*2000));
+  },
+  _onarimT: null,
   // Dükkan sahibinin telefonuna anlık push bildirim (ntfy.sh üzerinden).
   // Müşterinin ekranında hiçbir şey açılmaz; arka planda sessizce gönderilir.
   sendPush(appt){
     try{
-      // GİZLİLİK: ntfy konusu herkese açık olabildiği için ad/telefon GÖNDERİLMEZ.
-      const body = `${formatDateTR(appt.date)} - ${appt.time}\n${appt.services||''}\nAyrıntı için panele bakın.`;
-      fetch(`${CONFIG.NTFY_SERVER}/${CONFIG.NTFY_TOPIC}`, {
+      // DİKKAT (bilinçli tercih): müşteri adı ve telefonu bildirimin İÇİNDE gönderilir ki
+      // dükkan sahibi ntfy uygulamasını açmadan, doğrudan bildirimde görsün.
+      // Bedeli: ntfy konusu bu dosyanın kaynağında yazılı olduğundan, kaynağa bakıp aynı
+      // konuya abone olan biri de bu bilgileri görebilir. Kapatmak için ntfy'de
+      // "reserved topic" + okuma yetkisi kısıtlaması gerekir.
+      // NOT: HTTP başlıkları yalnızca ASCII taşır (Türkçe karakterde fetch HATA verir),
+      // bu yüzden ntfy'nin JSON uçları kullanılıyor — UTF-8 güvenli.
+      // Android bildirimi KAPALIYKEN alt satırları tek satıra birleştirip sonunu kırpar.
+      // Bu yüzden tarih+saat, asla kırpılmayan BAŞLIK satırına da konur; ad/telefon/hizmet
+      // ise gövdenin başında durur. Böylece bildirimi açmadan hepsi okunur.
+      const kisaAy = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+      const [yy,aa,gg] = String(appt.date||'').split('-');
+      const kisaTarih = (gg&&aa) ? `${parseInt(gg)} ${kisaAy[parseInt(aa)-1]} ${yy}` : formatDateTR(appt.date);
+      const baslik = `Yeni Randevu · ${kisaTarih}, ${appt.time}`;
+      const satirlar = [
+        `👤 ${appt.name||''}`,
+        `📞 ${appt.phone||''}`,
+        `✂️ ${appt.services||'—'}`,
+        `📅 ${formatDateTR(appt.date)} · ⏰ ${appt.time}`
+      ];
+      fetch(CONFIG.NTFY_SERVER, {
         method: 'POST',
-        body: body,
-        headers: {
-          'Title': 'Yeni Randevu!',
-          'Priority': 'high',
-          'Tags': 'calendar,scissors'
-        }
+        body: JSON.stringify({
+          topic: CONFIG.NTFY_TOPIC,
+          title: baslik,
+          message: satirlar.join('\n'),
+          priority: 4,
+          tags: ['scissors'],
+          click: location.origin + location.pathname
+        })
       }).catch(()=>{});
     }catch(e){}
   }
@@ -1751,6 +2047,20 @@ const Finance = {
 
 Net.init();
 UI.initCalendar();
+
+// ===== KALICI YÖNETİCİ OTURUMU =====
+// Bu cihazda daha önce giriş yapıldıysa ve "Çıkış Yap" denmediyse, site kapatılıp
+// tekrar açılsa bile şifre SORULMAZ; yönetici butonu doğrudan paneli açar.
+// (Panel kendiliğinden açılmaz; müşteri ekranı normal görünür.)
+(async function restoreAdminSession(){
+  try{
+    if(!window.isSecureContext || !(window.crypto && crypto.subtle)) return;
+    if(!(await Vault.restore())) return;
+    state.isAdmin = true;
+    await decryptAll();
+    UI.redrawCalendar();
+  }catch(e){}
+})();
 </script>
 
 <div id="servicesOverlay">
