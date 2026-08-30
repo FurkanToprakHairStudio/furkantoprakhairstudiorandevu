@@ -202,6 +202,19 @@
   .time-slot.slot-booked .slot-label { color:#C8553D; opacity:0.7; }
   .time-slot.slot-blocked { opacity:0.35; cursor:not-allowed; pointer-events:none; }
 
+  #barberSection { display:none; }
+  #barberSection.visible { display:block; }
+  .selected-date-label .sdl-barber { font-weight:600; color:var(--accent); }
+  .barber-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; }
+  .barber-item { background:var(--cream); border:1.5px solid var(--border-strong); border-radius:var(--r-sm); padding:14px 16px; cursor:pointer; transition:all 0.15s; user-select:none; display:flex; align-items:center; gap:12px; color:var(--ink); }
+  .barber-item:hover { background:var(--accent-light); border-color:var(--accent); color:var(--accent); transform:translateY(-1px); box-shadow:0 2px 8px rgba(45,106,79,0.15); }
+  .barber-item.barber-selected { background:var(--accent); border-color:var(--accent); color:white; box-shadow:0 2px 12px rgba(45,106,79,0.3); }
+  .barber-avatar { width:38px; height:38px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-size:15px; font-weight:600; background:var(--warm-white); border:1.5px solid currentColor; }
+  .barber-item.barber-selected .barber-avatar { background:rgba(255,255,255,0.16); border-color:rgba(255,255,255,0.5); color:white; }
+  .barber-body { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .barber-name { font-size:14px; font-weight:700; line-height:1.2; }
+  .barber-role { font-size:10px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; opacity:0.6; }
+
   #bookingFormSection { display:none; }
   #bookingFormSection.visible { display:block; }
   .service-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; margin-bottom:20px; }
@@ -308,6 +321,7 @@
     .card { padding:20px 16px; }
     .time-grid { grid-template-columns:repeat(3,1fr); }
     .service-grid { grid-template-columns:repeat(2,1fr); }
+    .barber-grid { grid-template-columns:1fr; }
     .flatpickr-day { height:40px !important; line-height:40px !important; font-size:13px !important; }
     .modal { border-radius:var(--r-md) var(--r-md) 0 0; position:fixed; bottom:0; max-height:85vh; }
     .overlay { align-items:flex-end; padding:0; }
@@ -605,7 +619,7 @@
   <div class="page-header">
     <div class="eyebrow">Online Rezervasyon</div>
     <h1>Randevunuzu <em>kolayca</em> alın</h1>
-    <p>Tarih seçin, uygun saati belirleyin ve bilgilerinizi girin.</p>
+    <p>Tarih ve usta seçin, uygun saati belirleyin ve bilgilerinizi girin.</p>
   </div>
 
   <div class="card" id="calendarCard">
@@ -613,9 +627,15 @@
     <div id="calendar"></div>
   </div>
 
+  <div class="card" id="barberSection">
+    <div class="card-title">Usta Seçin</div>
+    <div class="selected-date-label"><span id="selectedDateLabelBarber"></span> tarihi için usta seçin</div>
+    <div class="barber-grid" id="barberGrid"></div>
+  </div>
+
   <div class="card" id="timeSlotSection">
     <div class="card-title">Saat Seçin</div>
-    <div class="selected-date-label"><span id="selectedDateLabel"></span> tarihi için müsait saatler</div>
+    <div class="selected-date-label"><span id="selectedDateLabel"></span> tarihi için <strong class="sdl-barber" id="selectedBarberLabel"></strong> ustanın müsait saatleri</div>
     <div class="time-grid" id="timeGrid"></div>
   </div>
 
@@ -853,7 +873,15 @@
 <script>
 const CONFIG = {
   MQTT_BROKER: "wss://broker.emqx.io:8084/mqtt",
-  MQTT_TOPIC: "kerem-randevu-v6-beta-2026",
+  // === YILLIK DEFTER ===
+  // Randevular YIL BAZINDA ayrı bir konuda ("defter") tutulur. Konu adı = ÖN EK + YIL.
+  // 2026 için bu, eskiden kullanılan "kerem-randevu-v6-beta-2026" adının BİREBİR AYNISIDIR:
+  // bugünkü kayıtlar oldukları yerde kalır, tek bir tanesi bile silinmez/taşınmaz.
+  // 1 Ocak'ta yeni yılın defteri kendiliğinden açılır; ESKİ DEFTER SİLİNMEZ, sadece artık
+  // ona yazılmaz. Böylece tek paketin şişip yayın boyutu sınırına dayanması engellenir.
+  MQTT_TOPIC_BASE: "kerem-randevu-v6-beta-",
+  DEFTER_ILK_YIL: 2026,          // bu yıldan ÖNCESİ için defter yoktur
+  MQTT_TOPIC: "kerem-randevu-v6-beta-2026",   // (referans: 2026 defterinin tam adı)
   // === Telefona anlık PUSH bildirim (ntfy.sh) ===
   // Dükkan sahibi telefonuna ücretsiz "ntfy" uygulamasını kurup
   // AŞAĞIDAKİ kanal adına abone olmalı. Uygulama kapalı/telefon kilitliyken bile bildirim düşer.
@@ -872,6 +900,13 @@ const CONFIG = {
   PRIVKEY_ENC: {"s":"O5pEu4KoqZHEzSXud3tzZA==","i":"+wy9zun94HKyqKvP","c":"iP/6CKD+HqGJEXisAY+qhBH4PTS6cO7kLbNnSDJaBUaxOLdXWOG8KGEI0KNRgR3u+pqwyDEnRbv1bAlqrbUbaCojsNIevQw5XrPsvEO69nX/X6qsW49O+PPdTVPp3wXF/6eEzSzHSwdfkj578vcqUl/0o+suhWjYIixKSObAil3Fz8L4YT2P8iNioN13AfLSTDiKZqKo1Dt6HQbM+P5KYjDa9iouK/cat0qNEgRSgsFDAanDdvARCyqo9A6gfsXnWveQnAVqlkSwvJYI5OX2+RaJN8Pqn8ijpYIWkTXSixGmVgoKu87epJJG4upajCEQ6wpuaZ1tF1DQ7cW3IXGr8uiJu6QloCBbRBuACrHJOBBRX8EiEB/umoFgqD80k47qK6FKpsauPbGBLHz65RP8Rbj5igwUK5uEKa+hLIY0CjZpv55fbuUK5zxVaxZSuWXWzjZtTc68wYFwaz2uNAB4H0r3/KRekA9/b5iNwaU2jUSgvztRVp97nz/crgjd3HeAeGFdSq2rlDTNgf34MrgxEIqQ+sXsx/94jRtaseawQIfs8wswdGYKjPWHW9N9427UsWbzzWmpRvB5SGbWIJKrM+qhhrHBshw+y43NCUbXKtxIgu4NFkB7SoSvv6OWTjVnXVCqMj9KTBQAeOuARmtHijijWjTRv0czY+1uXhrb6pDbXPhB3eJR/bDCgac3ARjHwnyi0l550x8uzd4ZSdWJC8AdqzxuocemDuWHS71qysL4gq2fCRyFYLzj4sluCxlH+CjhEEtdiUQh+e6df1RU0D+RI30IFUpGRQUpsIPvBa8AOtSvh8XfxddvHxNjYa6KxZ0g6S+O9PjJpbukacs4CcawH4edh1pfza5jWt73mxbEdlb44DOPOQhuDr5DEmhxDrontPlOay+Bof0pGM62jqQBdJshg13LSyEoX2nmmDZMcbQWoxkY2ojZzBcLCjSdtxHRHHJuiKZqlHro6DmY/f6glRC9lPxFXto4Bw1vanZqxU2TpV5IK7a7Lko1l1EwqW5PwutwACss/J8oD/rQirDRUJ44z6hVdxTK9UEU4l3/+Ntylf68dmEI+i5f/4/1I/s+ZX0GGyLsr6T+H8RpoEjEGnCMCns6IRoxmujgl4JfRfTCIHT3m/XnTMUjc1T4OtrWBwmXTjhr9MQ+lWdK95sJQ9NhyEUZoiFj7W3piWNi7l+SIvQpIbKcRx5oIy9y8hwN+q8qDNfZX0BKC6Xb7haFAKhyT/VEspLUIIOn4sjJl/JHPuLKxxbXmaNnCojNh21wXsMPl5XmbNJA8MipwKfRNylNFeeZUCzg74TOZNsuhKPo7sRSAFmbIKtlBdWlSA/vkGS9dATuMQoTycWhQH9FUm+Pk1IUFCrWF/DiS/kJfUwGJcHK1PXMuIvpR4IXVF+RbqW/Woo3p5xUi3wrb1NfomYB3dC9mjNjh+Nv8+YEqGHbw0OjlXMKS2SE17MN9q9hjVF5rsUU8nslVRqhQ0MDm+leasew0t/U9OxnrcL5sjeFGkAz4MAdIWdjzflrj6YcBAdZlBt9Q+NL3ytbtvqmuA3p7oe2un1eZu7xHcrbnWJbeHq2c+Bq+HYQEMok3A3QhR7qAWanO/zTO5d4U0nK144iTCkxGuCzf13S19lZ"},
   // Randevu saatleri: tam saatler (buçuklu saat yok)
   TIME_SLOTS: ["09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00","21:00","22:00"],
+  // Ustalar: müşteri önce TARİH, sonra USTA seçer; saatler USTA BAZINDA doludur.
+  // Listedeki ilk usta aynı zamanda VARSAYILANDIR: usta alanı olmayan ESKİ randevular
+  // (bu özellik eklenmeden önce alınanlar) ona ait sayılır.
+  BARBERS: [
+    { id:"furkan", name:"Furkan Can Toprak" },
+    { id:"serhat", name:"Serhat Türkoğlu"   }
+  ],
   SERVICES: ["Saç + Sakal","Saç Tıraşı","Sakal Tıraşı","Çocuk Tıraşı","Damat Tıraşı","Cilt Bakımı Detaylı","Altın Oran Kaş Alımı","Express Cilt Bakımı","Yıkama","Fön"],
 
   // =========================================================
@@ -1195,7 +1230,7 @@ const Ledger = {
 const state = {
   db: { appointments:[], blockedDays:[], blockedSlots:[], cancelled:[] },
   isConnected:false, isAdmin:false, mqttClient:null,
-  flatpickr:null, selectedDate:null, selectedTime:null,
+  flatpickr:null, selectedDate:null, selectedBarber:null, selectedTime:null,
   selectedServices:[], adminFilter:'all',
   formReady: false,
   dbSynced: false,     // sunucudaki kayıt listesi geldi mi? gelmeden YAYIN YAPILMAZ
@@ -1226,6 +1261,26 @@ function apptPassed(a){
   if(!a||!a.date) return false;
   return a.date < today(); // sadece geçmiş GÜNLER gizlenir; bugünküler gün bitene kadar listede kalır
 }
+// ===== USTA YARDIMCILARI =====
+function defaultBarberId(){ return CONFIG.BARBERS[0].id; }
+// Bir randevunun ustası. Alan yoksa ya da tanınmıyorsa VARSAYILAN ustaya (listedeki ilk
+// usta) aitmiş sayılır; böylece bu özellik eklenmeden ÖNCE alınmış randevular da onun
+// saatini dolu tutmaya devam eder, çakışma olmaz.
+function apptBarberId(a){
+  const id = a && a.barber;
+  return CONFIG.BARBERS.some(b=>b.id===id) ? id : defaultBarberId();
+}
+function barberName(id){
+  const b = CONFIG.BARBERS.find(x=>x.id===id);
+  return b ? b.name : '';
+}
+// Avatar dairesindeki baş harfler: "Furkan Can Toprak" -> "FT"
+function barberInitials(name){
+  const parts = String(name||'').trim().split(/\s+/);
+  const ilk = (parts[0]||'')[0] || '';
+  const son = parts.length>1 ? ((parts[parts.length-1]||'')[0] || '') : '';
+  return (ilk+son).toLocaleUpperCase('tr');
+}
 function generateId(){ return Date.now().toString(36)+Math.random().toString(36).substr(2,6); }
 function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
@@ -1249,6 +1304,9 @@ function sanitizeDb(p){
     const o={ id:a.id, date:a.date,
               time: TIME.test(a.time||'')?a.time:'',
               createdAt: str(a.createdAt,40) };
+    // Usta kimliği DÜZ (şifresiz) durur: müsait saatleri herkesin hesaplayabilmesi gerekir.
+    // Sadece CONFIG'de TANIMLI usta kimlikleri kabul edilir; uydurma değer sessizce atılır.
+    if(CONFIG.BARBERS.some(b=>b.id===a.barber)) o.barber=a.barber;
     if(encOk(a.enc)){ o.enc={ k:a.enc.k, i:a.enc.i, c:a.enc.c }; }
     else { o.name=str(a.name,120); o.phone=str(a.phone,40); o.services=str(a.services,300); }
     out.appointments.push(o);
@@ -1315,7 +1373,7 @@ const UI = {
     if(!state.dbSynced){ el.className='ay-bilgi'; el.textContent='Sunucu verisi bekleniyor…'; return; }
     if(state.serverStale){
       el.className='ay-bilgi ay-uyari';
-      el.textContent=`Sunucuda ${state.sunucuSayisi} kayıt görünüyor, elimizde ${state.db.appointments.length}. Eksik kayıtlar geri gönderiliyor…`;
+      el.textContent=`Sunucuda ${state.sunucuSayisi} kayıt görünüyor, elimizde ${defterPaketi().appointments.length}. Eksik kayıtlar geri gönderiliyor…`;
     } else {
       el.className='ay-bilgi';
       el.textContent=`Sunucu ${state.sunucuSayisi} kayıt · Bu cihazın arşivi ${arsiv} kayıt. Her şey yerinde — randevular her açılışta bu cihaza da yedekleniyor.`;
@@ -1431,7 +1489,7 @@ const UI = {
     const sub=document.getElementById('adminSubtitle'); if(sub) sub.textContent=`${aktif} aktif randevu • Canlı senkronize`;
     list.innerHTML=appts.length===0
       ?`<div class="empty-state"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><p>Bu filtrede randevu bulunmuyor.</p></div>`
-      :appts.map(a=>{ const f=apptFields(a); return `<div class="appt-item"><div class="appt-meta"><div><div class="appt-name"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg>${escHtml(f.name)}</div><div class="appt-details">📅 ${formatDateTR(a.date)} — ⏰ ${escHtml(a.time)}<br>✂️ ${escHtml(f.services||'—')}<br>📞 ${escHtml(f.phone)}</div></div><span class="badge ${a.date>=td?'badge-success':'badge-accent'}">${a.date>=td?'Aktif':'Geçmiş'}</span></div><button class="btn btn-danger btn-sm" onclick="Logic.cancelAppointment('${a.id}')">İptal Et</button></div>`; }).join('');
+      :appts.map(a=>{ const f=apptFields(a); return `<div class="appt-item"><div class="appt-meta"><div><div class="appt-name"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg>${escHtml(f.name)}</div><div class="appt-details">📅 ${formatDateTR(a.date)} — ⏰ ${escHtml(a.time)}<br>💈 ${escHtml(barberName(apptBarberId(a)))}<br>✂️ ${escHtml(f.services||'—')}<br>📞 ${escHtml(f.phone)}</div></div><span class="badge ${a.date>=td?'badge-success':'badge-accent'}">${a.date>=td?'Aktif':'Geçmiş'}</span></div><button class="btn btn-danger btn-sm" onclick="Logic.cancelAppointment('${a.id}')">İptal Et</button></div>`; }).join('');
     const bd=document.getElementById('blockedDaysList');
     bd.innerHTML=state.db.blockedDays&&state.db.blockedDays.length
       ?'🔒 Kapalı günler: '+state.db.blockedDays.map(d=>formatDateTR(d)).join(', ')
@@ -1452,26 +1510,59 @@ const UI = {
         if(state.db.blockedDays&&state.db.blockedDays.includes(d)){
           showToast('Bu gün randevulara kapalıdır.','error'); instance.clear(); return;
         }
-        state.selectedDate=d; state.selectedTime=null;
+        // Tarih değişti: usta ve saat seçimi sıfırlanır, sıra USTA seçimine gelir.
+        state.selectedDate=d; state.selectedBarber=null; state.selectedTime=null;
         document.getElementById('bookingFormSection').classList.remove('visible');
-        state.selectedTime = null;
-        UI.showTimeSlots();
-        setTimeout(()=>document.getElementById('timeSlotSection').scrollIntoView({behavior:'smooth',block:'start'}),80);
+        document.getElementById('timeSlotSection').classList.remove('visible');
+        UI.showBarbers();
+        setTimeout(()=>document.getElementById('barberSection').scrollIntoView({behavior:'smooth',block:'start'}),80);
       }
     });
   },
   redrawCalendar(){ if(state.flatpickr) state.flatpickr.redraw(); },
+  // ADIM 2 — USTA SEÇİMİ (tarihten SONRA, saatten ÖNCE)
+  showBarbers(){
+    const sec=document.getElementById('barberSection');
+    sec.classList.add('visible');
+    document.getElementById('selectedDateLabelBarber').textContent=formatDateTR(state.selectedDate);
+    const grid=document.getElementById('barberGrid');
+    grid.innerHTML='';
+    CONFIG.BARBERS.forEach(b=>{
+      const div=document.createElement('div');
+      div.className='barber-item'+(state.selectedBarber===b.id?' barber-selected':'');
+      div.innerHTML=`<span class="barber-avatar">${escHtml(barberInitials(b.name))}</span>`+
+                    `<span class="barber-body"><span class="barber-name">${escHtml(b.name)}</span>`+
+                    `<span class="barber-role">Usta</span></span>`;
+      div.onclick=()=>UI.selectBarber(b.id,div);
+      grid.appendChild(div);
+    });
+  },
+  selectBarber(id,el){
+    const saatlerAcik=document.getElementById('timeSlotSection').classList.contains('visible');
+    if(state.selectedBarber===id && saatlerAcik) return;
+    document.querySelectorAll('.barber-item').forEach(x=>x.classList.remove('barber-selected'));
+    el.classList.add('barber-selected');
+    // Usta değişti: seçili saat DÜŞER — müsaitlik her ustada ayrıdır.
+    state.selectedBarber=id;
+    state.selectedTime=null;
+    document.getElementById('bookingFormSection').classList.remove('visible');
+    UI.showTimeSlots();
+    setTimeout(()=>document.getElementById('timeSlotSection').scrollIntoView({behavior:'smooth',block:'start'}),80);
+  },
   showTimeSlots(){
+    if(!state.selectedDate || !state.selectedBarber) return;   // usta seçilmeden saat gösterilmez
     const sec=document.getElementById('timeSlotSection');
     sec.classList.add('visible');
     document.getElementById('selectedDateLabel').textContent=formatDateTR(state.selectedDate);
+    document.getElementById('selectedBarberLabel').textContent=barberName(state.selectedBarber);
     const grid=document.getElementById('timeGrid');
     grid.innerHTML='';
     const now=new Date();
     const isToday = state.selectedDate===today();
     const nowMin = now.getHours()*60 + now.getMinutes();
     CONFIG.TIME_SLOTS.forEach(t=>{
-      const booked=state.db.appointments.some(a=>a.date===state.selectedDate&&a.time===t);
+      // Yalnızca SEÇİLİ USTANIN o saatteki randevusu "dolu" sayılır; diğer usta serbesttir.
+      const booked=state.db.appointments.some(a=>a.date===state.selectedDate&&a.time===t&&apptBarberId(a)===state.selectedBarber);
       const blocked=state.db.blockedSlots&&state.db.blockedSlots.includes(state.selectedDate+'_'+t);
       const [hh,mm]=t.split(':').map(Number);
       const past = isToday && (hh*60+mm) <= nowMin;   // bugün geçmiş saat
@@ -1504,12 +1595,11 @@ const UI = {
     }
   },
   showBookingForm(){
-    if(state.formReady){
-      return;
-    }
     const sec=document.getElementById('bookingFormSection');
     sec.classList.add('visible');
-    document.getElementById('bookingSummary').textContent=`📅 ${formatDateTR(state.selectedDate)}  ·  ⏰ ${state.selectedTime}`;
+    document.getElementById('bookingSummary').textContent=`📅 ${formatDateTR(state.selectedDate)}  ·  ⏰ ${state.selectedTime}  ·  💈 ${barberName(state.selectedBarber)}`;
+    // Hizmet listesi ve ad/telefon alanları YALNIZCA ilk açılışta kurulur; kullanıcı
+    // tarih/usta değiştirince yazdıkları silinmez, sadece üstteki özet güncellenir.
     if(!state.formReady) {
       state.formReady=true;
       state.selectedServices=[];
@@ -1538,6 +1628,7 @@ const UI = {
   },
   showSuccess(appt){
     document.getElementById('calendarCard').style.display='none';
+    document.getElementById('barberSection').classList.remove('visible');
     document.getElementById('timeSlotSection').classList.remove('visible');
     document.getElementById('bookingFormSection').classList.remove('visible');
     const det=document.getElementById('successDetails');
@@ -1545,6 +1636,7 @@ const UI = {
       <div class="success-row"><span class="success-row-icon">👤</span><div class="success-row-body"><span class="success-row-label">Ad Soyad</span><span class="success-row-val">${escHtml(appt.name)}</span></div></div>
       <div class="success-row"><span class="success-row-icon">📅</span><div class="success-row-body"><span class="success-row-label">Tarih</span><span class="success-row-val">${formatDateTR(appt.date)}</span></div></div>
       <div class="success-row"><span class="success-row-icon">⏰</span><div class="success-row-body"><span class="success-row-label">Saat</span><span class="success-row-val">${appt.time}</span></div></div>
+      <div class="success-row"><span class="success-row-icon">💈</span><div class="success-row-body"><span class="success-row-label">Usta</span><span class="success-row-val">${escHtml(appt.barberName||barberName(appt.barber))}</span></div></div>
       <div class="success-row"><span class="success-row-icon">✂️</span><div class="success-row-body"><span class="success-row-label">Hizmet</span><span class="success-row-val">${escHtml(appt.services)}</span></div></div>
     `;
     const sc=document.getElementById('successCard');
@@ -1555,8 +1647,10 @@ const UI = {
     state.formReady=false;
     document.getElementById('successCard').classList.remove('visible');
     document.getElementById('calendarCard').style.display='';
+    document.getElementById('barberSection').classList.remove('visible');
     document.getElementById('timeSlotSection').classList.remove('visible');
     document.getElementById('bookingFormSection').classList.remove('visible');
+    state.selectedDate=null; state.selectedBarber=null; state.selectedTime=null;
     state.selectedServices=[];
     document.getElementById('guestName').value='';
     document.getElementById('guestPhone').value='';
@@ -1609,6 +1703,7 @@ const Logic = {
     if(!phone||phone.length<7){showToast('Lütfen geçerli bir telefon girin.','error');return;}
     if(state.selectedServices.length===0){showToast('Lütfen en az bir hizmet seçin.','error');return;}
     if(!state.selectedDate||!state.selectedTime){showToast('Tarih/saat seçimi hatalı.','error');return;}
+    if(!CONFIG.BARBERS.some(b=>b.id===state.selectedBarber)){showToast('Lütfen bir usta seçin.','error');return;}
     if(state.selectedDate===today()){
       const now=new Date();
       const [hh,mm]=state.selectedTime.split(':').map(Number);
@@ -1620,12 +1715,14 @@ const Logic = {
     // Kaydetmeden hemen önce sunucudaki en güncel listeyi çek: hem çift randevuyu,
     // hem de eski kopyayla yayın yapıp başkasının randevusunu silmeyi önler.
     await Net.tazele();
-    if(state.db.appointments.some(a=>a.date===state.selectedDate&&a.time===state.selectedTime)){
+    if(state.db.appointments.some(a=>a.date===state.selectedDate&&a.time===state.selectedTime&&apptBarberId(a)===state.selectedBarber)){
       showToast('Bu saat az önce doldu! Başka saat seçin.','error');
       UI.showTimeSlots(); document.getElementById('bookingFormSection').classList.remove('visible'); return;
     }
     const services=state.selectedServices.join(', ');
-    const display={ name, phone, services, date:state.selectedDate, time:state.selectedTime };
+    const ustaAdi=barberName(state.selectedBarber);
+    const display={ name, phone, services, date:state.selectedDate, time:state.selectedTime,
+                    barber:state.selectedBarber, barberName:ustaAdi };
     // Ad/telefon/hizmet ŞİFRELENEREK saklanır; düz metin sunucuya ASLA gönderilmez.
     let enc;
     try{ enc = await Vault.encrypt({ name, phone, services }); }
@@ -1633,6 +1730,7 @@ const Logic = {
     const appt={
       id:generateId(),
       date:state.selectedDate, time:state.selectedTime,
+      barber:state.selectedBarber,   // ŞİFRELENMEZ: müsait saat hesabı için herkese açık olmalı
       createdAt:new Date().toLocaleString('tr-TR'),
       enc
     };
@@ -1646,7 +1744,7 @@ const Logic = {
     }
     Ledger.sync([appt], state.db.cancelled);
     Net.sendPush(display); // Dükkan sahibine anlık bildirim (ad/telefon İÇERMEZ)
-    state.selectedDate=null; state.selectedTime=null; state.selectedServices=[];
+    state.selectedDate=null; state.selectedBarber=null; state.selectedTime=null; state.selectedServices=[];
     state.formReady=false;
     UI.showSuccess(display);
   },
@@ -1712,7 +1810,7 @@ const Logic = {
                        state.db);
     const eklenen = state.db.appointments.length - oncekiSayi;
     // Arşivden bir şey eklenmemiş olsa bile SUNUCU geride kalmış olabilir; o zaman da yayınla.
-    const sunucuGeride = state.serverStale || state.db.appointments.length > state.sunucuSayisi;
+    const sunucuGeride = state.serverStale || defterPaketi().appointments.length > state.sunucuSayisi;
     if(eklenen<=0 && !sunucuGeride){ showToast('Sunucudaki kayıtlar eksiksiz — onarıma gerek yok.','success',4000); UI.yedekBilgisiniGuncelle(); return; }
     if(!Net.publish()) return;
     Ledger.sync(state.db.appointments, state.db.cancelled);
@@ -1722,13 +1820,43 @@ const Logic = {
   }
 };
 
+// ===== YILLIK DEFTER YARDIMCILARI =====
+// defterYili()      : içinde bulunulan takvim yılı (= yazılan defter)
+// defterTopic(y)    : o yılın defterinin konu adı
+// defterTopicleri() : ABONE olunacak defterler — bu yıl VE geçen yıl.
+//                     Geçen yıl da dinlenir ki 31 Aralık'ta alınmış ileri tarihli (Ocak)
+//                     randevular yıl dönünce kaybolmasın, yeni deftere taşınabilsin.
+// defterPaketi()    : bu yılın defterine YAZILACAK paket.
+//                     İLK YILDA (DEFTER_ILK_YIL) HİÇBİR ŞEY ELENMEZ — mevcut kayıtların
+//                     tamamı bugün olduğu gibi yayınlanır. Eleme ancak yeni bir defter
+//                     açıldığında başlar, o zaman da eski defter yerinde durmaya devam eder.
+function defterYili(){ return new Date().getFullYear(); }
+function defterTopic(yil){ return CONFIG.MQTT_TOPIC_BASE + (yil || defterYili()); }
+function defterTopicleri(){
+  const y = defterYili();
+  const list = [ defterTopic(y) ];
+  if(y-1 >= CONFIG.DEFTER_ILK_YIL) list.push(defterTopic(y-1));
+  return list;
+}
+function defterPaketi(){
+  const y = defterYili();
+  if(y <= CONFIG.DEFTER_ILK_YIL) return state.db;   // 2026: bugünkü davranışın BİREBİR AYNISI
+  const yilOk = v => Number(String(v||'').slice(0,4)) >= y;
+  return {
+    appointments: (state.db.appointments||[]).filter(a=>yilOk(a.date)),
+    blockedDays:  (state.db.blockedDays ||[]).filter(yilOk),
+    blockedSlots: (state.db.blockedSlots||[]).filter(yilOk),
+    cancelled:    (state.db.cancelled   ||[]).slice()
+  };
+}
+
 const Net = {
   init(){
     const clientId='rc_'+Math.random().toString(16).substr(2,8);
     state.mqttClient=mqtt.connect(CONFIG.MQTT_BROKER,{clean:false,clientId,reconnectPeriod:3000});
     state.mqttClient.on('connect',()=>{
       UI.setConnection(true);
-      state.mqttClient.subscribe(CONFIG.MQTT_TOPIC,{qos:1});
+      defterTopicleri().forEach(t=>state.mqttClient.subscribe(t,{qos:1}));
       // Sunucuda kayıtlı veri yoksa mesaj hiç gelmez; 10 sn sonra yayına izin ver
       // (elimizde zaten cihaz arşivi var, o yüzden bu yayın da veri silmez).
       if(!state.dbSynced) setTimeout(()=>{ state.dbSynced = true; }, 10000);
@@ -1739,17 +1867,29 @@ const Net = {
         if(!p || typeof p !== 'object') return;
         // Gelen veri ekrana basılmadan ÖNCE biçim denetiminden geçer (enjeksiyon kalkanı)
         const gelen = sanitizeDb(p);
+        const buDefter = (topic === defterTopic());
+        // Kapalı gün/saatler YALNIZCA bu yılın defterinden gelir. Geçen yılın defteri
+        // sadece randevu geçmişi için okunur; oradaki ESKİ kapatmalar bu yılınkileri EZMESİN.
+        const kaynak = buDefter ? gelen : Object.assign({}, gelen, {
+          blockedDays:  state.db.blockedDays,
+          blockedSlots: state.db.blockedSlots
+        });
         // ÜZERİNE YAZMA YOK — BİRLEŞTİRME VAR: kimsenin randevusu düşmez
-        const birlesik = mergeDb(state.db, gelen);
+        const birlesik = mergeDb(state.db, kaynak);
         state.dbSynced = true;
-        state.sunucuSayisi = (gelen.appointments||[]).length;
+        state.db = birlesik;
         // Sunucudaki liste bizdekinden eksikse (biri eski kopyayla üzerine yazmış,
         // ya da kayıtlar kaybolmuş) birleşmiş hali geri yayınlayıp onarırız.
-        state.serverStale = eksikSayisi(gelen, birlesik) > 0;
-        state.db = birlesik;
-        if(state.serverStale) this.onarimPlanla();
-        else state.onarimSayisi = 0;   // sunucu tamamlandı: onarım sayacı sıfırlanır ki
-                                       // ilerideki bir kayıp için kota dolmuş olmasın
+        // ÖNEMLİ: bu hesap YALNIZCA bu yılın defteri için yapılır. Geçen yılın defteri
+        // sadece OKUNUR, ona hiç yazılmaz; "eksik" sayılırsa sonsuz onarım döngüsü olurdu.
+        if(buDefter){
+          const paket = defterPaketi();
+          state.sunucuSayisi = (gelen.appointments||[]).length;
+          state.serverStale = eksikSayisi(gelen, paket) > 0;
+          if(state.serverStale) this.onarimPlanla();
+          else state.onarimSayisi = 0;   // sunucu tamamlandı: onarım sayacı sıfırlanır ki
+                                         // ilerideki bir kayıp için kota dolmuş olmasın
+        }
         // Geçmiş kayıtlar cihazda arşivlenir -> yıllık gelir asla sıfırlanmaz
         Ledger.sync(state.db.appointments, state.db.cancelled);
         if(state._tazeBekleyen) state._tazeBekleyen();   // tazele() bekliyorsa uyandır
@@ -1783,7 +1923,8 @@ const Net = {
       return false;
     }
     try{
-      state.mqttClient.publish(CONFIG.MQTT_TOPIC,JSON.stringify(state.db),{qos:1,retain:true});
+      // Yalnızca BU YILIN defterine yazılır. Eski defterlere hiç dokunulmaz.
+      state.mqttClient.publish(defterTopic(),JSON.stringify(defterPaketi()),{qos:1,retain:true});
       state.serverStale = false;
       return true;
     }catch(e){
@@ -1800,20 +1941,21 @@ const Net = {
     // istemciyi abonesiz bırakıp güncellemeleri kesebilir. Devam eden varsa o beklenir.
     if(this._tazeSoz) return this._tazeSoz;
     if(!state.mqttClient || !state.isConnected || !state.dbSynced) return Promise.resolve(false);
+    const konular = defterTopicleri();
     this._tazeSoz = new Promise(res=>{
       let bitti=false, t=null;
       const bit = ok=>{
         if(bitti) return; bitti=true;
         state._tazeBekleyen=null; clearTimeout(t); this._tazeSoz=null;
         // Ne olursa olsun abonelikle çık — aksi halde güncellemeler gelmez.
-        try{ state.mqttClient.subscribe(CONFIG.MQTT_TOPIC,{qos:1}); }catch(e){}
+        try{ state.mqttClient.subscribe(konular,{qos:1}); }catch(e){}
         res(ok);
       };
       t = setTimeout(()=>bit(false), sure);
       state._tazeBekleyen = ()=>bit(true);
       try{
-        state.mqttClient.unsubscribe(CONFIG.MQTT_TOPIC, ()=>{
-          try{ state.mqttClient.subscribe(CONFIG.MQTT_TOPIC,{qos:1}); }catch(e){ bit(false); }
+        state.mqttClient.unsubscribe(konular, ()=>{
+          try{ state.mqttClient.subscribe(konular,{qos:1}); }catch(e){ bit(false); }
         });
       }catch(e){ bit(false); }
     });
@@ -1849,11 +1991,18 @@ const Net = {
       const kisaAy = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
       const [yy,aa,gg] = String(appt.date||'').split('-');
       const kisaTarih = (gg&&aa) ? `${parseInt(gg)} ${kisaAy[parseInt(aa)-1]} ${yy}` : formatDateTR(appt.date);
-      const baslik = `Yeni Randevu · ${kisaTarih}, ${appt.time}`;
+      // Usta ismi hem BAŞLIKTA (kısa ad — bildirim kapalıyken bile okunur) hem de
+      // gövdede tam adıyla yazar; böylece randevunun kime düştüğü hemen görülür.
+      const usta = appt.barberName || barberName(appt.barber) || '';
+      const ustaKisa = usta.split(' ')[0] || '';
+      const baslik = ustaKisa
+        ? `Yeni Randevu · ${ustaKisa} · ${kisaTarih}, ${appt.time}`
+        : `Yeni Randevu · ${kisaTarih}, ${appt.time}`;
       const satirlar = [
         `👤 ${appt.name||''}`,
         `📞 ${appt.phone||''}`,
         `✂️ ${appt.services||'—'}`,
+        `💈 Usta: ${usta||'—'}`,
         `📅 ${formatDateTR(appt.date)} · ⏰ ${appt.time}`
       ];
       fetch(CONFIG.NTFY_SERVER, {
