@@ -223,6 +223,9 @@
   .service-item.selected { background:var(--accent); border-color:var(--accent); color:white; }
   .service-check { width:16px; height:16px; border:2px solid currentColor; border-radius:4px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; }
   .service-item.selected .service-check::after { content:'✓'; }
+  /* Seçili bir hizmetle ÇAKIŞTIĞI için seçilemeyen hizmet: soluk + kesik çerçeve */
+  .service-item.service-kilitli { opacity:0.35; border-style:dashed; background:transparent; }
+  .service-item.service-kilitli:hover { background:transparent; border-color:var(--border-strong); color:var(--ink); }
 
   .form-group { margin-bottom:16px; }
   .form-group label { display:block; font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--ink-light); margin-bottom:7px; }
@@ -578,6 +581,20 @@
   .analiz-phone { font-size:12px; color:var(--ink-muted); }
   .analiz-count { background:var(--accent-light); color:var(--accent); border-radius:100px; padding:5px 12px; font-size:13px; font-weight:700; white-space:nowrap; }
   /* Müşteri Analizi — yıl kartı ve ay ızgarası */
+  /* Hesap Defteri — ay şeridi ve gider dökümü */
+  .fin-ay-serit { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; margin:-6px 0 18px; }
+  .fin-ay-btn { background:var(--warm-white); border:1.5px solid var(--border-strong); border-radius:8px; padding:8px 2px; text-align:center; font-size:11px; font-weight:700; color:var(--ink); cursor:pointer; transition:all 0.15s; user-select:none; }
+  .fin-ay-btn:hover { background:var(--accent-light); border-color:var(--accent); color:var(--accent); }
+  .fin-ay-btn.aktif { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .fin-ay-btn.gelecek { opacity:0.4; border-style:dashed; background:transparent; }
+  .fin-ay-btn.gelecek:hover { opacity:0.8; }
+  .fin-gd-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:9px 14px; background:var(--warm-white); border:1px solid var(--border); border-radius:var(--r-sm); margin-bottom:6px; font-size:13px; }
+  .fin-gd-row.fin-gd-toplam { background:var(--accent-light); border-color:var(--accent-border); font-weight:700; color:var(--accent); }
+  .fin-gd-ad { color:var(--ink); min-width:0; }
+  .fin-gd-row.fin-gd-toplam .fin-gd-ad { color:var(--accent); }
+  .fin-gd-tutar { font-weight:700; white-space:nowrap; color:#C8553D; }
+  .fin-gd-row.fin-gd-toplam .fin-gd-tutar { color:var(--accent); }
+  .fin-gd-not { font-size:11px; color:var(--ink-muted); margin:8px 2px 0; line-height:1.5; }
   .analiz-yil-card { display:flex; align-items:center; gap:14px; background:var(--accent); color:#fff; border-radius:var(--r-md); padding:16px 18px; margin-bottom:20px; cursor:pointer; box-shadow:var(--shadow-sm); transition:all 0.15s; user-select:none; }
   .analiz-yil-card:hover { background:var(--accent-hover); transform:translateY(-1px); box-shadow:var(--shadow-md); }
   .analiz-yil-body { flex:1; min-width:0; }
@@ -802,6 +819,8 @@
         <button class="fp-btn" data-period="month" onclick="Finance.render('month',this)">Ay</button>
         <button class="fp-btn active" data-period="year" onclick="Finance.render('year',this)">2026</button>
       </div>
+      <!-- "Ay" sekmesi seçiliyken çıkar: geçmiş aylara da bakılabilsin diye -->
+      <div class="fin-ay-serit" id="financeAySerit" style="display:none;"></div>
       <div class="finance-cards">
         <div class="fin-card"><span class="fin-label">Gelir</span><span class="fin-val fin-gelir" id="finGelir">₺0</span></div>
         <div class="fin-card fin-card-main"><span class="fin-label">Net Kâr</span><span class="fin-val fin-kar" id="finKar">₺0</span></div>
@@ -809,6 +828,8 @@
       </div>
       <div class="finance-chart-wrap"><canvas id="financeChart"></canvas></div>
       <p class="finance-note" id="financeNote"></p>
+      <div class="admin-section-title" style="margin-top:20px;">Gider Dökümü</div>
+      <div id="financeGiderDokum"></div>
       <div class="admin-section-title" style="margin-top:20px;">Bu Dönemde Sayılan Randevular</div>
       <div id="financeBreakdown"></div>
     </div>
@@ -946,26 +967,67 @@ const CONFIG = {
   ],
   SERVICES: ["Saç + Sakal","Saç Tıraşı","Sakal Tıraşı","Çocuk Tıraşı","Damat Tıraşı","Cilt Bakımı Detaylı","Altın Oran Kaş Alımı","Express Cilt Bakımı","Yıkama","Fön"],
 
+  // === ÇAKIŞAN HİZMETLER ===
+  // Her satır bir gruptur: AYNI GRUPTAN aynı anda EN FAZLA BİR hizmet seçilebilir.
+  // Bir hizmet birden çok grupta yer alabilir (Saç + Sakal hem tıraş türü, hem sakalı kapsar).
+  // Burada YER ALMAYAN hizmetler (Kaş, Yıkama, Fön) her şeyle birlikte seçilebilir.
+  HIZMET_CAKISMA: [
+    // Tıraş türleri — biri seçilince diğerleri kilitlenir
+    ["Saç + Sakal","Saç Tıraşı","Çocuk Tıraşı","Damat Tıraşı"],
+    // Saç + Sakal zaten sakalı kapsadığı için ayrıca Sakal Tıraşı seçilemez
+    ["Saç + Sakal","Sakal Tıraşı"],
+    // İki cilt bakımından yalnızca biri
+    ["Cilt Bakımı Detaylı","Express Cilt Bakımı"]
+  ],
+
   // =========================================================
-  //  FİYAT & KÂR TABLOSU  (SADECE YÖNETİCİ PANELİNDE KULLANILIR)
-  //  Müşteriler bu fiyatları ASLA görmez. Sadece grafik/hesap için.
-  //  price = müşteriden alınan ücret (₺)
-  //  cost  = o işin sana maliyeti (₺)
-  //  Net Kâr = price - cost (otomatik hesaplanır)
-  //  >>> AŞAĞIDAKİ SAYILARI KENDİ GERÇEK FİYATLARINLA DEĞİŞTİR <<<
+  //  FİYAT TABLOSU  (SADECE YÖNETİCİ PANELİNDE KULLANILIR)
+  //  Müşteriler bu fiyatları ASLA görmez. Sadece hesap defteri/grafik için.
+  //  price = müşteriden alınan ücret (₺)  -> GELİR
+  //  Hizmet başına maliyet YOKTUR: giderler artık SABIT_GIDERLER ve usta priminden
+  //  oluşur (malzeme gideri de aylık sabit kalem olarak aşağıda yer alır).
   // =========================================================
   PRICING: {
-    "Saç + Sakal":          { price: 600,  cost: 240  },
-    "Saç Tıraşı":           { price: 500,  cost: 190  },
-    "Sakal Tıraşı":         { price: 400,  cost: 160  },
-    "Çocuk Tıraşı":         { price: 400,  cost: 150  },
-    "Damat Tıraşı":         { price: 4000, cost: 1100 },
-    "Cilt Bakımı Detaylı":  { price: 1400, cost: 550  },
-    "Altın Oran Kaş Alımı": { price: 200,  cost: 70   },
-    "Express Cilt Bakımı":  { price: 800,  cost: 320  },
-    "Yıkama":               { price: 150,  cost: 65   },
-    "Fön":                  { price: 150,  cost: 60   }
-  }
+    "Saç + Sakal":          { price: 600  },
+    "Saç Tıraşı":           { price: 500  },
+    "Sakal Tıraşı":         { price: 400  },
+    "Çocuk Tıraşı":         { price: 400  },
+    "Damat Tıraşı":         { price: 4000 },
+    "Cilt Bakımı Detaylı":  { price: 1400 },
+    "Altın Oran Kaş Alımı": { price: 200  },
+    "Express Cilt Bakımı":  { price: 800  },
+    "Yıkama":               { price: 150  },
+    "Fön":                  { price: 150  }
+  },
+
+  // =========================================================
+  //  SABİT GİDERLER (AYLIK)
+  //  Toplam 65.000 ₺/ay. PAZAR GÜNLERİ ÇALIŞILMADIĞI için bu tutar ayın
+  //  PAZAR HARİÇ gün sayısına bölünerek günlük gider payına çevrilir.
+  //  Örn. 26 iş günü olan ayda günlük 2.500 ₺, 24 iş günü olan ayda 2.708 ₺.
+  //  Ayın toplamı her zaman 65.000 ₺'dir.
+  // =========================================================
+  // Dükkânın AÇILIŞ tarihi. Bu tarihten ÖNCEKİ günlere sabit gider YAZILMAZ,
+  // çünkü dükkân henüz açılmamıştı. 2026 Ocak–Mayıs bu yüzden gidersizdir.
+  DUKKAN_ACILIS: "2026-06-01",
+  SABIT_GIDERLER: {
+    "Kira":               15000,
+    "Kredi Geri Ödeme":   28000,
+    "Elektrik Faturası":   3100,
+    "Su Faturası":         1000,
+    "Malzeme Giderleri":   5000,
+    "Muhasebeci Ücreti":   3000,
+    "Vergiler":            5000,
+    "Diğer Giderler":      4900
+  },
+
+  // =========================================================
+  //  USTA PRİMİ
+  //  Ustanın getirdiği gelirin bu oranı GİDER olarak yazılır.
+  //  Serhat Türkoğlu: yaptığı her işin %50'si kendi primi, %50'si dükkânın geliri.
+  //  Furkan Can Toprak dükkân sahibidir; primi yoktur, bu yüzden listede yer almaz.
+  // =========================================================
+  USTA_PRIM: { serhat: 0.50 }
 };
 
 // ===== SHA-256 (saf JS, hiçbir dış kütüphane yok) =====
@@ -1712,16 +1774,48 @@ const UI = {
         const div=document.createElement('div');
         div.className='service-item';
         div.innerHTML=`<span class="service-check"></span><span>${s}</span>`;
-        div.onclick=()=>{
-          const idx=state.selectedServices.indexOf(s);
-          if(idx===-1){ state.selectedServices.push(s); div.classList.add('selected'); }
-          else { state.selectedServices.splice(idx,1); div.classList.remove('selected'); }
-        };
+        div.dataset.svc=s;
+        div.onclick=()=>UI.hizmetSec(s);
         sg.appendChild(div);
       });
+      UI.hizmetleriTazele();
       document.getElementById('guestName').value='';
       document.getElementById('guestPhone').value='';
     }
+  },
+  // Bu hizmet, ŞU AN SEÇİLİ olanlardan biriyle çakışıyor mu?
+  // Çakışıyorsa engelleyen hizmetin adını, çakışmıyorsa null döner.
+  hizmetEngeli(s){
+    const secili=state.selectedServices;
+    const gruplar=CONFIG.HIZMET_CAKISMA||[];
+    for(let i=0;i<gruplar.length;i++){
+      const grup=gruplar[i];
+      if(grup.indexOf(s)<0) continue;
+      for(let j=0;j<grup.length;j++){
+        if(grup[j]!==s && secili.indexOf(grup[j])>=0) return grup[j];
+      }
+    }
+    return null;
+  },
+  hizmetSec(s){
+    const idx=state.selectedServices.indexOf(s);
+    if(idx>=0){
+      state.selectedServices.splice(idx,1);           // seçiliyse kaldır
+    } else {
+      const engel=this.hizmetEngeli(s);
+      if(engel){ showToast(`"${engel}" seçiliyken "${s}" seçilemez.`,'error'); return; }
+      state.selectedServices.push(s);
+    }
+    this.hizmetleriTazele();
+  },
+  // Seçilileri işaretle, çakışanları kilitli göster
+  hizmetleriTazele(){
+    document.querySelectorAll('#serviceGrid .service-item').forEach(div=>{
+      const s=div.dataset.svc;
+      const secili=state.selectedServices.indexOf(s)>=0;
+      div.classList.toggle('selected', secili);
+      div.classList.toggle('service-kilitli', !secili && !!this.hizmetEngeli(s));
+    });
   },
   resetSlotSelection(){
     state.selectedTime=null;
@@ -2126,6 +2220,7 @@ const Net = {
 // ===== HESAP DEFTERİ (gelir / gider / net kâr + grafik) =====
 const Finance = {
   period: 'year',
+  ay: new Date().getMonth(),   // "Ay" sekmesinde bakılan ay (geçmiş aylara da bakılabilir)
   chart: null,
   _pmap: null,
   // İsmi sadeleştir: küçük harf + tüm boşlukları kaldır (eşleşme garantisi)
@@ -2152,15 +2247,65 @@ const Finance = {
     }
     return this._pmap;
   },
+  // ===== AY / GÜN BAZLI SABİT GİDER =====
+  // Aylık sabit gider toplamı (CONFIG.SABIT_GIDERLER kalemlerinin toplamı = 65.000)
+  aylikSabitGider(){
+    if(this._sabit===undefined){
+      this._sabit=Object.keys(CONFIG.SABIT_GIDERLER)
+        .reduce((t,k)=>t+(Number(CONFIG.SABIT_GIDERLER[k])||0),0);
+    }
+    return this._sabit;
+  },
+  _sabit: undefined,
+  // Bir ayın ÇALIŞMA günü sayısı — PAZAR GÜNLERİ ÇALIŞILMADIĞI için sayılmaz.
+  calismaGunu(y,m){
+    if(!this._cg) this._cg={};
+    const k=y+'-'+m;
+    if(this._cg[k]===undefined){
+      const dim=new Date(y,m+1,0).getDate();
+      let n=0;
+      for(let d=1;d<=dim;d++) if(new Date(y,m,d).getDay()!==0) n++;   // 0 = Pazar
+      this._cg[k]=n||1;
+    }
+    return this._cg[k];
+  },
+  _cg: null,
+  // Bir günün sabit gider payı. Pazar = 0. Ay toplamı her zaman 65.000 eder.
+  gunPayi(y,m){ return this.aylikSabitGider()/this.calismaGunu(y,m); },
+  // Bugünün sonu (bu ana kadar YAŞANMIŞ günler sayılır, bugün DAHİL)
+  bugunSonu(){ const n=new Date(); return new Date(n.getFullYear(),n.getMonth(),n.getDate()).getTime(); },
+  // Dükkânın açıldığı an. Bu tarihten önceki günlere sabit gider yazılmaz.
+  acilis(){
+    if(this._ac===undefined){
+      const [y,m,d]=String(CONFIG.DUKKAN_ACILIS||'').split('-').map(Number);
+      this._ac = (y&&m&&d) ? new Date(y,m-1,d).getTime() : 0;
+    }
+    return this._ac;
+  },
+  _ac: undefined,
+  // Bu güne sabit gider yazılır mı? Pazar / gelecek / açılış öncesi -> HAYIR
+  giderliGun(g, bugun){
+    if(g.getDay()===0) return false;          // Pazar: çalışılmıyor
+    if(g.getTime()>bugun) return false;       // henüz yaşanmadı
+    if(g.getTime()<this.acilis()) return false; // dükkân henüz açılmamıştı
+    return true;
+  },
+
+  // ===== RANDEVU BAŞINA =====
+  // gelir : müşteriden alınan tutar (fiyat tablosundan)
+  // prim  : ustanın payı — GİDER yazılır (Serhat %50, Furkan 0)
+  // Sabit giderler randevu başına DEĞİL, dönem toplamında hesaplanır.
   totals(appt){
-    let gelir=0, gider=0;
+    let gelir=0;
     const map=this.pmap();
     const svc=apptFields(appt).services;
     (svc||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(name=>{
       const p=map[this.norm(name)];
-      if(p){ gelir+=Number(p.price)||0; gider+=Number(p.cost)||0; }
+      if(p) gelir+=Number(p.price)||0;
     });
-    return {gelir, gider};
+    const oran=CONFIG.USTA_PRIM[apptBarberId(appt)]||0;
+    const prim=gelir*oran;
+    return {gelir, gider:prim, prim};
   },
   fmt(n){ return '₺'+Math.round(n).toLocaleString('tr-TR'); },
   // Hesap defterinin veri kaynağı: arşiv + canlı liste (iptaller düşülmüş)
@@ -2177,7 +2322,7 @@ const Finance = {
       const diff=Math.round((new Date(ay,am-1,ad)-monday)/86400000);
       return diff>=0 && diff<7;
     }
-    if(this.period==='month') return ay===y && (am-1)===now.getMonth();
+    if(this.period==='month') return ay===y && (am-1)===this.ay;
     // YIL: sadece takvim yılına bakılır (ay değişimi yıllık toplamı ETKİLEMEZ).
     // Yıllık toplam yalnızca 1 Ocak'ta sıfırlanır.
     return ay===y;
@@ -2191,21 +2336,34 @@ const Finance = {
     if(list.length===0){ box.innerHTML='<div class="fin-bd-empty">Bu dönemde sayılan randevu yok.</div>'; return; }
     box.innerHTML=list.map(a=>{
       const t=this.totals(a);
-      const kar=t.gelir-t.gider;
       const f=apptFields(a);
-      return `<div class="fin-bd-row"><div class="fin-bd-left">${escHtml(f.name||'-')}<small>${formatDateTR(a.date)} · ${escHtml(a.time||'')} · ${escHtml(f.services||'-')}</small></div><div class="fin-bd-amt">${this.fmt(kar)}</div></div>`;
+      // Satırda SADECE GELİR yazar (usta primi ve sabit giderler üstteki Gider kutusunda toplu görünür)
+      return `<div class="fin-bd-row"><div class="fin-bd-left">${escHtml(f.name||'-')}<small>${formatDateTR(a.date)} · ${escHtml(a.time||'')} · ${escHtml(barberName(apptBarberId(a)))}<br>${escHtml(f.services||'-')}</small></div><div class="fin-bd-amt">${this.fmt(t.gelir)}</div></div>`;
     }).join('');
   },
   buckets(period){
     const appts=this.pool();
     const now=new Date(), y=now.getFullYear();
+    const bugun=this.bugunSonu();
     let labels=[], data=[];
     const add=(i,t)=>{ if(data[i]){ data[i].gelir+=t.gelir; data[i].gider+=t.gider; } };
+    // Bir günün sabit gider payını doğru kutuya ekler.
+    // PAZAR ve HENÜZ YAŞANMAMIŞ günler sayılmaz.
+    const gunGideri=(i,yy,mm,dd)=>{
+      if(!this.giderliGun(new Date(yy,mm,dd), bugun)) return;
+      if(data[i]) data[i].gider+=this.gunPayi(yy,mm);
+    };
     if(period==='day'){
       const td=today();
       labels=CONFIG.TIME_SLOTS.slice();
       data=labels.map(()=>({gelir:0,gider:0}));
       appts.forEach(a=>{ if(a.date===td){ const i=labels.indexOf(a.time); if(i>=0) add(i,this.totals(a)); } });
+      // Günün sabit gider payı çalışma saatlerine eşit dağıtılır (grafik için)
+      const g=new Date(y,now.getMonth(),now.getDate());
+      if(this.giderliGun(g,bugun)){
+        const pay=this.gunPayi(y,now.getMonth())/labels.length;
+        data.forEach(d=>{ d.gider+=pay; });
+      }
     } else if(period==='week'){
       const dow=(now.getDay()+6)%7;
       const monday=new Date(y,now.getMonth(),now.getDate()-dow); monday.setHours(0,0,0,0);
@@ -2217,8 +2375,12 @@ const Finance = {
         const diff=Math.round((new Date(ay,am-1,ad)-monday)/86400000);
         if(diff>=0 && diff<7) add(diff,this.totals(a));
       });
+      for(let i=0;i<7;i++){
+        const g=new Date(monday.getFullYear(),monday.getMonth(),monday.getDate()+i);
+        gunGideri(i,g.getFullYear(),g.getMonth(),g.getDate());
+      }
     } else if(period==='month'){
-      const m=now.getMonth();
+      const m=this.ay;                                   // SEÇİLİ ay (geçmiş ay olabilir)
       const dim=new Date(y,m+1,0).getDate();
       const weeks=Math.ceil(dim/7);
       labels=[]; for(let i=0;i<weeks;i++) labels.push((i+1)+'. Hafta');
@@ -2228,6 +2390,7 @@ const Finance = {
         const [ay,am,ad]=a.date.split('-').map(Number);
         if(ay===y && (am-1)===m) add(Math.floor((ad-1)/7),this.totals(a));
       });
+      for(let d=1;d<=dim;d++) gunGideri(Math.floor((d-1)/7),y,m,d);
     } else {
       labels=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
       data=labels.map(()=>({gelir:0,gider:0}));
@@ -2236,8 +2399,70 @@ const Finance = {
         const [ay,am]=a.date.split('-').map(Number);
         if(ay===y) add(am-1,this.totals(a));
       });
+      for(let m=0;m<12;m++){
+        const dim=new Date(y,m+1,0).getDate();
+        for(let d=1;d<=dim;d++) gunGideri(m,y,m,d);
+      }
     }
     return {labels, data};
+  },
+  // Seçili dönemin SABİT gider toplamı ve kaç iş gününden geldiği.
+  // PAZAR ve henüz YAŞANMAMIŞ günler sayılmaz.
+  donemSabit(){
+    const now=new Date(), y=now.getFullYear(), bugun=this.bugunSonu();
+    let tutar=0, gun=0;
+    const ekle=(yy,mm,dd)=>{
+      if(!this.giderliGun(new Date(yy,mm,dd), bugun)) return;
+      tutar+=this.gunPayi(yy,mm); gun++;
+    };
+    if(this.period==='day'){ ekle(y,now.getMonth(),now.getDate()); }
+    else if(this.period==='week'){
+      const dow=(now.getDay()+6)%7;
+      for(let i=0;i<7;i++){
+        const g=new Date(y,now.getMonth(),now.getDate()-dow+i);
+        ekle(g.getFullYear(),g.getMonth(),g.getDate());
+      }
+    }
+    else if(this.period==='month'){
+      const dim=new Date(y,this.ay+1,0).getDate();
+      for(let d=1;d<=dim;d++) ekle(y,this.ay,d);
+    }
+    else {
+      for(let m=0;m<12;m++){
+        const dim=new Date(y,m+1,0).getDate();
+        for(let d=1;d<=dim;d++) ekle(y,m,d);
+      }
+    }
+    return {tutar, gun};
+  },
+  // "Ay" sekmesindeki 12 aylık şerit (geçmiş aylara bakabilmek için)
+  aySeridiCiz(){
+    const el=document.getElementById('financeAySerit');
+    if(!el) return;
+    if(this.period!=='month'){ el.style.display='none'; return; }
+    el.style.display='';
+    const buAy=new Date().getMonth();
+    const kisa=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+    el.innerHTML=kisa.map((ad,i)=>{
+      const cls='fin-ay-btn'+(i===this.ay?' aktif':'')+(i>buAy?' gelecek':'');
+      return `<div class="${cls}" onclick="Finance.aySec(${i})">${ad}</div>`;
+    }).join('');
+  },
+  aySec(m){ this.ay=m; this.render('month'); },
+  // Gider kalemleri: sabit kalemler dönem oranıyla + usta primi
+  giderDokumuCiz(sabit, prim){
+    const box=document.getElementById('financeGiderDokum');
+    if(!box) return;
+    const aylik=this.aylikSabitGider();
+    const oran = aylik>0 ? sabit.tutar/aylik : 0;   // dönem, kaç aylık gidere denk geliyor
+    const satir=(ad,tut,cls)=>`<div class="fin-gd-row${cls||''}"><span class="fin-gd-ad">${escHtml(ad)}</span><span class="fin-gd-tutar">${this.fmt(tut)}</span></div>`;
+    let html=Object.keys(CONFIG.SABIT_GIDERLER)
+      .map(k=>satir(k, (Number(CONFIG.SABIT_GIDERLER[k])||0)*oran)).join('');
+    if(prim>0) html+=satir('Usta Primi (Serhat Türkoğlu %50)', prim);
+    html+=satir('TOPLAM GİDER', sabit.tutar+prim, ' fin-gd-toplam');
+    const g=sabit.gun;
+    html+=`<p class="fin-gd-not">Sabit giderler aylık ${this.fmt(aylik)} olup ayın pazar hariç gün sayısına bölünür. Bu dönemde ${g} iş günü sayıldı. Pazarlar, henüz gelmemiş günler ve dükkânın açılışından (${formatDateTR(CONFIG.DUKKAN_ACILIS)}) önceki günler hesaba katılmaz.</p>`;
+    box.innerHTML=html;
   },
   render(period, btn){
     if(period) this.period=period;
@@ -2247,6 +2472,7 @@ const Finance = {
     document.querySelectorAll('#financePeriod .fp-btn').forEach(b=>b.classList.remove('active'));
     if(btn) btn.classList.add('active');
     else { const b=document.querySelector('#financePeriod .fp-btn[data-period="'+this.period+'"]'); if(b) b.classList.add('active'); }
+    this.aySeridiCiz();
     const {labels, data}=this.buckets(this.period);
     const karArr=data.map(d=>d.gelir-d.gider);
     const totGelir=data.reduce((s,d)=>s+d.gelir,0);
@@ -2255,8 +2481,13 @@ const Finance = {
     const g=document.getElementById('finGelir'); if(g) g.textContent=this.fmt(totGelir);
     const gd=document.getElementById('finGider'); if(gd) gd.textContent=this.fmt(totGider);
     const k=document.getElementById('finKar'); if(k) k.textContent=(totKar>=0?'+':'')+this.fmt(totKar);
+    // Gider dökümü: sabit kalemler + usta primi (toplam üstteki Gider kutusuyla birebir aynıdır)
+    const sabit=this.donemSabit();
+    this.giderDokumuCiz(sabit, Math.max(0, totGider-sabit.tutar));
     const yr=new Date().getFullYear();
-    const notes={day:'Bugün — saatlere göre net kâr',week:'Bu hafta — günlere göre net kâr',month:'Bu ay — haftalara göre net kâr',year:yr+' — aylara göre net kâr'};
+    const AYLAR=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+    const notes={day:'Bugün — saatlere göre net kâr',week:'Bu hafta — günlere göre net kâr',
+                 month:AYLAR[this.ay]+' '+yr+' — haftalara göre net kâr',year:yr+' — aylara göre net kâr'};
     const n=document.getElementById('financeNote'); if(n) n.textContent=notes[this.period]||'';
     this.renderBreakdown();
     this.draw(labels, karArr);
