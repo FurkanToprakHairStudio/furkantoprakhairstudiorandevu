@@ -577,6 +577,25 @@
   .analiz-name { font-weight:700; font-size:15px; color:var(--ink); }
   .analiz-phone { font-size:12px; color:var(--ink-muted); }
   .analiz-count { background:var(--accent-light); color:var(--accent); border-radius:100px; padding:5px 12px; font-size:13px; font-weight:700; white-space:nowrap; }
+  /* Müşteri Analizi — yıl kartı ve ay ızgarası */
+  .analiz-yil-card { display:flex; align-items:center; gap:14px; background:var(--accent); color:#fff; border-radius:var(--r-md); padding:16px 18px; margin-bottom:20px; cursor:pointer; box-shadow:var(--shadow-sm); transition:all 0.15s; user-select:none; }
+  .analiz-yil-card:hover { background:var(--accent-hover); transform:translateY(-1px); box-shadow:var(--shadow-md); }
+  .analiz-yil-body { flex:1; min-width:0; }
+  .analiz-yil-no { font-family:'Fraunces',serif; font-size:28px; font-weight:400; line-height:1; }
+  .analiz-yil-alt { font-size:12px; opacity:0.78; margin-top:5px; }
+  .analiz-yil-ok { font-size:22px; opacity:0.7; flex-shrink:0; }
+  .analiz-ay-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .analiz-ay-btn { background:var(--warm-white); border:1.5px solid var(--border-strong); border-radius:var(--r-sm); padding:14px 6px; text-align:center; cursor:pointer; transition:all 0.15s; user-select:none; }
+  .analiz-ay-btn:hover { background:var(--accent-light); border-color:var(--accent); transform:translateY(-1px); box-shadow:0 2px 8px rgba(45,106,79,0.15); }
+  .analiz-ay-ad { font-size:13px; font-weight:700; color:var(--ink); line-height:1.2; }
+  .analiz-ay-sayi { font-size:11px; font-weight:600; color:var(--ink-muted); margin-top:4px; }
+  /* İÇİNDE BULUNULAN AY: yeşil çerçeveyle öne çıkar */
+  .analiz-ay-btn.ay-bu { border-color:var(--accent); background:var(--accent-light); }
+  .analiz-ay-btn.ay-bu .analiz-ay-ad { color:var(--accent); }
+  .analiz-ay-etiket { font-size:9px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--accent); margin-top:3px; }
+  /* HENÜZ GELMEMİŞ AY: soluk ve kesik çerçeve — tıklamadan ayırt edilir */
+  .analiz-ay-btn.ay-gelecek { opacity:0.42; border-style:dashed; background:transparent; }
+  .analiz-ay-btn.ay-gelecek:hover { opacity:0.8; }
 
   /* Hesap dökümü */
   .fin-bd-row { display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--warm-white); border:1px solid var(--border); border-radius:var(--r-sm); padding:11px 14px; margin-bottom:8px; font-size:13px; }
@@ -798,12 +817,30 @@
   <!-- MÜŞTERİ ANALİZİ -->
   <div id="adminAnaliz" class="admin-view" style="display:none;">
     <div class="admin-fs-head">
-      <button class="back-btn" onclick="UI.showAdminView('home')">←</button>
-      <h2 class="admin-fs-title">Müşteri Analizi</h2>
+      <button class="back-btn" onclick="UI.analizGeri()">←</button>
+      <div>
+        <h2 class="admin-fs-title" id="analizBaslik">Müşteri Analizi</h2>
+        <p class="admin-fs-sub" id="analizAltBaslik">Bir ay seçin</p>
+      </div>
     </div>
     <div class="admin-inner">
-      <div class="admin-section-title" id="analizTitle">Bu Ay — En Çok Gelen Müşteriler</div>
-      <div id="analizList"></div>
+      <!-- EKRAN 1: yıl kartı + 12 ay -->
+      <div id="analizAylar">
+        <div class="analiz-yil-card" onclick="UI.analizAc('yil')">
+          <div class="analiz-yil-body">
+            <div class="analiz-yil-no" id="analizYilNo">2026</div>
+            <div class="analiz-yil-alt" id="analizYilAlt">Bu yılın tamamı</div>
+          </div>
+          <span class="analiz-yil-ok">›</span>
+        </div>
+        <div class="admin-section-title">Aylar</div>
+        <div class="analiz-ay-grid" id="analizAyGrid"></div>
+      </div>
+      <!-- EKRAN 2: seçilen ayın/yılın sıralaması -->
+      <div id="analizDetay" style="display:none;">
+        <div class="admin-section-title" id="analizTitle">En Çok Gelenden En Aza</div>
+        <div id="analizList"></div>
+      </div>
     </div>
   </div>
 
@@ -1446,28 +1483,94 @@ const UI = {
     if(view==='home') this.yedekBilgisiniGuncelle();
     else if(view==='randevular') this.renderAdminPanel();
     else if(view==='hesap') Finance.render();
-    else if(view==='analiz') this.renderAnaliz();
+    else if(view==='analiz'){ this.analizSecim=null; this.renderAnaliz(); }
   },
-  renderAnaliz(){
-    const now=new Date(), y=now.getFullYear(), m=now.getMonth();
-    const months=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
-    const t=document.getElementById('analizTitle'); if(t) t.textContent=`${months[m]} ${y} — En Çok Gelen Müşteriler`;
+  // ===== MÜŞTERİ ANALİZİ =====
+  // İki ekran var:
+  //   EKRAN 1  analizSecim === null  -> yıl kartı + 12 ay düğmesi
+  //   EKRAN 2  analizSecim = 0..11 (ay) ya da 'yil' -> müşteri sıralaması (çoktan aza)
+  // Geri düğmesi: detaydayken ay listesine, ay listesindeyken ana menüye döner.
+  analizSecim: null,
+  AYLAR: ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'],
+
+  analizAc(sec){
+    this.analizSecim = sec;
+    this.renderAnaliz();
+    const ov=document.getElementById('adminPanelOverlay'); if(ov) ov.scrollTop=0;
+  },
+  analizGeri(){
+    if(this.analizSecim!==null){
+      this.analizSecim=null;
+      this.renderAnaliz();
+      const ov=document.getElementById('adminPanelOverlay'); if(ov) ov.scrollTop=0;
+    } else {
+      this.showAdminView('home');
+    }
+  },
+  // Müşterileri randevu sayısına göre ÇOKTAN AZA sıralar. Eşitlikte isme göre.
+  // Aynı kişi telefonundan tanınır (telefon yoksa isimden).
+  analizSirala(kabul){
     const map={};
     Ledger.all().forEach(a=>{
       if(!a.date) return;
       const [ay,am]=a.date.split('-').map(Number);
-      if(ay===y && (am-1)===m){
-        const f=apptFields(a);
-        const key=(f.phone||f.name||'?').trim();
-        if(!map[key]) map[key]={name:f.name||'-', phone:f.phone||'', count:0};
-        map[key].count++;
-      }
+      if(!kabul(ay, am-1)) return;
+      const f=apptFields(a);
+      const key=(f.phone||f.name||'?').trim();
+      if(!map[key]) map[key]={ name:f.name||'-', phone:f.phone||'', count:0 };
+      map[key].count++;
     });
-    const arr=Object.values(map).sort((a,b)=>b.count-a.count);
+    return Object.values(map).sort((a,b)=> b.count-a.count || a.name.localeCompare(b.name,'tr'));
+  },
+  renderAnaliz(){
+    if(this.analizSecim===null) this.analizAylariCiz();
+    else this.analizDetayCiz();
+  },
+  // EKRAN 1 — yıl kartı ve 12 ay
+  analizAylariCiz(){
+    const now=new Date(), y=now.getFullYear(), buAy=now.getMonth();
+    const ayl=document.getElementById('analizAylar'), det=document.getElementById('analizDetay');
+    if(!ayl||!det) return;
+    ayl.style.display=''; det.style.display='none';
+    document.getElementById('analizBaslik').textContent='Müşteri Analizi';
+    document.getElementById('analizAltBaslik').textContent='Bir ay seçin';
+    // Bu yılın randevuları ay ay sayılır
+    const sayi=new Array(12).fill(0);
+    let yilTop=0;
+    Ledger.all().forEach(a=>{
+      if(!a.date) return;
+      const [ay,am]=a.date.split('-').map(Number);
+      if(ay===y && am>=1 && am<=12){ sayi[am-1]++; yilTop++; }
+    });
+    document.getElementById('analizYilNo').textContent=y;
+    document.getElementById('analizYilAlt').textContent=`Bu yılın tamamı · ${yilTop} randevu`;
+    document.getElementById('analizAyGrid').innerHTML=this.AYLAR.map((ad,i)=>{
+      const gelecek = i>buAy;                       // henüz girmediğimiz ay
+      const bu      = i===buAy;
+      const cls='analiz-ay-btn'+(bu?' ay-bu':'')+(gelecek?' ay-gelecek':'');
+      // Gelecek ayda ileri tarihli randevu VARSA sayısı yazılır, yoksa "Henüz gelmedi"
+      const alt = (gelecek && sayi[i]===0) ? 'Henüz gelmedi' : `${sayi[i]} randevu`;
+      return `<div class="${cls}" onclick="UI.analizAc(${i})">`+
+             `<div class="analiz-ay-ad">${ad}</div>`+
+             `<div class="analiz-ay-sayi">${alt}</div>`+
+             (bu?'<div class="analiz-ay-etiket">Bu ay</div>':'')+
+             `</div>`;
+    }).join('');
+  },
+  // EKRAN 2 — seçilen ayın (ya da tüm yılın) müşteri sıralaması
+  analizDetayCiz(){
+    const y=new Date().getFullYear(), sec=this.analizSecim, tumYil=(sec==='yil');
+    const ayl=document.getElementById('analizAylar'), det=document.getElementById('analizDetay');
+    if(!ayl||!det) return;
+    ayl.style.display='none'; det.style.display='';
+    document.getElementById('analizBaslik').textContent = tumYil ? String(y) : `${this.AYLAR[sec]} ${y}`;
+    const arr=this.analizSirala((ay,ai)=> ay===y && (tumYil || ai===sec));
+    const top=arr.reduce((t,c)=>t+c.count,0);
+    document.getElementById('analizAltBaslik').textContent=`${arr.length} müşteri · ${top} randevu`;
     const cont=document.getElementById('analizList');
     if(!cont) return;
     cont.innerHTML=arr.length===0
-      ? '<div class="empty-state"><p>Bu ay henüz randevu yok.</p></div>'
+      ? `<div class="empty-state"><p>${tumYil?'Bu yıl':'Bu ay'} henüz randevu yok.</p></div>`
       : arr.map((c,i)=>`<div class="analiz-item"><div class="analiz-rank ${i<3?'top':''}">${i+1}</div><div class="analiz-body"><div class="analiz-name">${escHtml(c.name)}</div><div class="analiz-phone">${escHtml(c.phone)}</div></div><div class="analiz-count">${c.count} randevu</div></div>`).join('');
   },
   closeAdminPanel(){ document.getElementById('adminPanelOverlay').classList.add('hidden'); },
