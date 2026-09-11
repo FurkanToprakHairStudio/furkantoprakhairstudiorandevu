@@ -403,12 +403,12 @@ const UI = {
   },
 
   // ===== MENÜ VE TANITIM SAYFALARI =====
-  openNavMenu(){ document.getElementById('navOverlay').classList.add('show'); },
-  closeNavMenu(){ document.getElementById('navOverlay').classList.remove('show'); },
-  openAboutPage(){ this.closeNavMenu(); document.getElementById('aboutOverlay').classList.add('show'); },
-  closeAboutPage(){ document.getElementById('aboutOverlay').classList.remove('show'); },
-  openServicesPage(){ this.closeNavMenu(); document.getElementById('servicesOverlay').classList.add('show'); },
-  closeServicesPage(){ document.getElementById('servicesOverlay').classList.remove('show'); },
+  openNavMenu(){ document.getElementById('navOverlay').classList.add('visible'); },
+  closeNavMenu(){ document.getElementById('navOverlay').classList.remove('visible'); },
+  openAboutPage(){ this.closeNavMenu(); document.getElementById('aboutOverlay').classList.add('visible'); },
+  closeAboutPage(){ document.getElementById('aboutOverlay').classList.remove('visible'); },
+  openServicesPage(){ this.closeNavMenu(); document.getElementById('servicesOverlay').classList.add('visible'); },
+  closeServicesPage(){ document.getElementById('servicesOverlay').classList.remove('visible'); },
 
   // ===== YÖNETİCİ PANELİ =====
   handleAdminButton(){
